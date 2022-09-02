@@ -91,16 +91,8 @@ function Subgraph(props) {
       </div>
 
       <div style={{ margin: 32 }}>
-        <span style={{ marginRight: 8 }}>⛓️</span>
-        Make sure your local chain is running first:
-        <span className="highlight" style={highlight}>
-          yarn chain
-        </span>
-      </div>
-
-      <div style={{ margin: 32 }}>
         <span style={{ marginRight: 8 }}>🚮</span>
-        Clean up previous data, if there is any:
+        Clean up previous data:
         <span className="highlight" style={highlight}>
           yarn clean-graph-node
         </span>
@@ -147,11 +139,7 @@ function Subgraph(props) {
           packages/subgraph/src
         </span>
         (learn more about subgraph definition{" "}
-        <a
-          href="https://thegraph.com/docs/en/developer/define-subgraph-hosted/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href="https://thegraph.com/docs/define-a-subgraph" target="_blank" rel="noopener noreferrer">
           here
         </a>
         )
