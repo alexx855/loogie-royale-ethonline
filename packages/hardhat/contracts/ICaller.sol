@@ -10,9 +10,13 @@ enum MoveDirection {
 
 interface IGame {
     function setRegistry(address _registry) external;
+
     function register() external;
+
     function move(MoveDirection direction) external;
-    function collectTokens() external;
+
+    // function collectTokens() external;
     function collectHealth() external;
+
     function update(address myNewContract) external;
 }

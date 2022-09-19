@@ -26,44 +26,154 @@ function Subgraph(props) {
 
   const EXAMPLE_GRAPHQL = `
   {
-    purposes(first: 25, orderBy: createdAt, orderDirection: desc) {
-      id
-      purpose
-      createdAt
-      sender {
-        id
+    games {
+      ticker,
+      height,
+      width,
+      restart,
+      nextCurse,
+      gameOn,
+      createdAt,
+      curseCount
+    },
+    players {
+        id,
+        x,
+        y,
+        loogieId,
+        health,
+        lastActionTick,
+        lastActionBlock,
+        lastActionTime
+    },
+    worldMatrixes {
+      id,
+      x,
+      y,
+      healthAmountToCollect,
+      cursed,
+      player {
+        id,
+        x,
+        y,
+        loogieId,
+        health,
+        lastActionTick,
+        lastActionBlock,
+        lastActionTime
       }
-    }
-    senders {
-      id
-      address
-      purposeCount
     }
   }
   `;
+
   const EXAMPLE_GQL = gql(EXAMPLE_GRAPHQL);
   const { loading, data } = useQuery(EXAMPLE_GQL, { pollInterval: 2500 });
 
-  const purposeColumns = [
+  const worldMatrixColumns = [
     {
-      title: "Purpose",
-      dataIndex: "purpose",
-      key: "purpose",
-    },
-    {
-      title: "Sender",
+      title: "id",
+      dataIndex: "id",
       key: "id",
-      render: record => <Address value={record.sender.id} ensProvider={props.mainnetProvider} fontSize={16} />,
     },
     {
-      title: "createdAt",
-      key: "createdAt",
-      dataIndex: "createdAt",
-      render: d => new Date(d * 1000).toISOString(),
+      title: "cursed",
+      dataIndex: "cursed",
+      key: "cursed",
+      render: record => {
+        console.log("🚀 ~ file: Subgraph.jsx ~ line 54 ~ Subgraph ~ record", record);
+        return `${record}`;
+      },
+    },
+    {
+      title: "health to collect",
+      dataIndex: "healthAmountToCollect",
+      key: "healthAmountToCollect",
+    },
+    {
+      title: "player",
+      dataIndex: "player",
+      key: "playerAddress",
+      render: record =>
+        record ? <Address value={record.id} ensProvider={props.mainnetProvider} fontSize={16} /> : null,
+    },
+    {
+      title: "player health",
+      dataIndex: "player",
+      key: "playerHealth",
+      render: record => {
+        console.log("🚀 ~ file: Subgraph.jsx ~ line 84 ~ Subgraph ~ record", record);
+        return record ? parseInt(record.health, 10) : null;
+      },
     },
   ];
 
-  const [newPurpose, setNewPurpose] = useState("loading...");
+  const playerColumns = [
+    {
+      title: "id",
+      dataIndex: "id",
+      key: "id",
+      render: record => (record ? <Address value={record} ensProvider={props.mainnetProvider} fontSize={16} /> : null),
+    },
+    {
+      title: "health",
+      dataIndex: "health",
+      key: "health",
+    },
+    {
+      title: "x",
+      dataIndex: "x",
+      key: "x",
+    },
+    {
+      title: "y",
+      dataIndex: "y",
+      key: "y",
+    },
+  ];
+
+  const gameColumns = [
+    {
+      title: "id",
+      dataIndex: "id",
+      key: "id",
+    },
+    {
+      title: "gameOn",
+      dataIndex: "gameOn",
+      key: "gameOn",
+      render: record => (record ? "true" : "false"),
+    },
+    {
+      title: "height",
+      dataIndex: "height",
+      key: "height",
+    },
+    {
+      title: "width",
+      dataIndex: "width",
+      key: "width",
+    },
+    {
+      title: "restart block number",
+      dataIndex: "restart",
+      key: "restart",
+    },
+    {
+      title: "next curse block number",
+      dataIndex: "nextCurse",
+      key: "nextCurse",
+    },
+    // {
+    //   title: "gameOn",
+    //   dataIndex: "gameOn",
+    //   key: "gameOn",
+    // },
+    // {
+    //   title: "createdAt",
+    //   dataIndex: "createdAt",
+    //   key: "createdAt",
+    // },
+  ];
 
   const deployWarning = (
     <div style={{ marginTop: 8, padding: 8 }}>Warning: 🤔 Have you deployed your subgraph yet?</div>
@@ -91,8 +201,16 @@ function Subgraph(props) {
       </div>
 
       <div style={{ margin: 32 }}>
+        <span style={{ marginRight: 8 }}>⛓️</span>
+        Make sure your local chain is running first:
+        <span className="highlight" style={highlight}>
+          yarn chain
+        </span>
+      </div>
+
+      <div style={{ margin: 32 }}>
         <span style={{ marginRight: 8 }}>🚮</span>
-        Clean up previous data:
+        Clean up previous data, if there is any:
         <span className="highlight" style={highlight}>
           yarn clean-graph-node
         </span>
@@ -153,26 +271,13 @@ function Subgraph(props) {
         </span>
       </div>
 
-      <div style={{ width: 780, margin: "auto", paddingBottom: 64 }}>
-        <div style={{ margin: 32, textAlign: "right" }}>
-          <Input
-            onChange={e => {
-              setNewPurpose(e.target.value);
-            }}
-          />
-          <Button
-            onClick={() => {
-              console.log("newPurpose", newPurpose);
-              /* look how you call setPurpose on your contract: */
-              props.tx(props.writeContracts.YourContract.setPurpose(newPurpose));
-            }}
-          >
-            Set Purpose
-          </Button>
-        </div>
-
+      <div style={{ width: "100%", paddingBottom: 64 }}>
         {data ? (
-          <Table dataSource={data.purposes} columns={purposeColumns} rowKey="id" />
+          <>
+            {/* <Table dataSource={data.games} columns={gameColumns} rowKey="id" /> */}
+            <Table dataSource={data.players} columns={playerColumns} rowKey="id" />
+            <Table dataSource={data.worldMatrixes} columns={worldMatrixColumns} rowKey="id" />
+          </>
         ) : (
           <Typography>{loading ? "Loading..." : deployWarning}</Typography>
         )}

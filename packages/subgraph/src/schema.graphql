@@ -1,20 +1,34 @@
+type Game @entity {
+  id: ID!
+  ticker: BigInt!
+  height: Int!
+  width: Int!
+  restart: BigInt!
+  nextCurse: BigInt!
+  gameOn: Boolean!
+  createdAt: BigInt!
+  winner: Bytes!
+  curseCount: Int!
+}
+
 type WorldMatrix @entity {
   id: ID!
   x: Int!
   y: Int!
   player: Player
-  tokenAmountToCollect: BigInt!
   healthAmountToCollect: BigInt!
+  cursed: Boolean!
 }
 
 type Player @entity {
   id: ID!
   x: Int!
   y: Int!
-  address: Bytes!
-  fancyLoogieId: BigInt!
+  loogieId: BigInt!
   health: BigInt!
-  token: BigInt!
   createdAt: BigInt!
   transactionHash: String!
+  lastActionTick: BigInt!
+  lastActionBlock: BigInt!
+  lastActionTime: BigInt!
 }

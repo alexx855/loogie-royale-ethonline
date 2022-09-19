@@ -1,4 +1,4 @@
-import { ApolloClient, ApolloProvider, InMemoryCache } from "@apollo/client";
+import { ApolloClient, ApolloProvider, HttpLink, InMemoryCache } from "@apollo/client";
 import React from "react";
 import { ThemeSwitcherProvider } from "react-css-theme-switcher";
 import { BrowserRouter } from "react-router-dom";
@@ -16,7 +16,10 @@ const prevTheme = window.localStorage.getItem("theme");
 const subgraphUri = "http://localhost:8000/subgraphs/name/scaffold-eth/your-contract";
 
 const client = new ApolloClient({
-  uri: subgraphUri,
+  connectToDevTools: true,
+  link: new HttpLink({
+    uri: subgraphUri,
+  }),
   cache: new InMemoryCache(),
 });
 

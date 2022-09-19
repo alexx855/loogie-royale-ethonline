@@ -17,25 +17,24 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
   const { deployer } = await getNamedAccounts();
   const chainId = await getChainId();
 
-  const collectInterval = 60; // 1 minute, block.timestamp is in UNIX seconds
+  await deploy("YourContract", {
+    // Learn more about args here: https://www.npmjs.com/package/hardhat-deploy#deploymentsdeploy
+    from: deployer,
+    // args: [ "Hello", ethers.utils.parseEther("1.5") ],
+    log: true,
+    waitConfirmations: 5,
+  });
 
-  /*
-  // localhost
-  const loogiesContractAddress = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
-  const loogieCoinContractAddress =
-    "0x5c74c94173F05dA1720953407cbb920F3DF9f887";
+  console.log(
+    `Attempting to deploy LoogiesMock.sol to network number ${chainId} from ${deployer.address}`
+  );
 
-
-  // kovan optimism
-  const loogiesContractAddress = "0x43693eeC62666D621ba33095090BE60d4aF6D6FA";
-  const loogieCoinContractAddress =
-    "0x37a76CFB334b62C0eAf8808Dc9B5Ff82bB246827";
-   */
-
-  // optimism
-  const loogiesContractAddress = "0xbE7706DFA9Cc5aEEB5b26698C1bc5c43829E808A";
-  const loogieCoinContractAddress =
-    "0x83eD2eE1e2744D27Ffd949314f4098f13535292F";
+  const loogiesContract = await deploy("Loogies", {
+    from: deployer,
+    log: true,
+  });
+  const loogiesContractAddress = loogiesContract.address;
+  // }
 
   console.log(
     `Attempting to deploy Game.sol to network number ${chainId} from ${deployer.address}`
@@ -44,7 +43,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
   const gameContract = await deploy("Game", {
     // Learn more about args here: https://www.npmjs.com/package/hardhat-deploy#deploymentsdeploy
     from: deployer,
-    args: [collectInterval, loogiesContractAddress, loogieCoinContractAddress],
+    args: [loogiesContractAddress],
     log: true,
   });
 
@@ -52,38 +51,39 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
 
   const GameContract = await ethers.getContract("Game", deployer);
 
-  await GameContract.start();
-
+  // await GameContract.start();
   await GameContract.setDropOnCollect(true);
 
-  await GameContract.transferOwnership(
-    "0x5dCb5f4F39Caa6Ca25380cfc42280330b49d3c93"
-  );
+  // if (chainId !== localChainId) {
+  //   await GameContract.transferOwnership(
+  //     "0x2E4D22389510eD618A4cF778409270C34eE1AF9e"
+  //   );
+  // }
 
   try {
-    await run("verify:verify", {
-      address: gameContract.address,
-      contract: "contracts/Game.sol:Game",
-      constructorArguments: [
-        collectInterval,
-        loogiesContractAddress,
-        loogieCoinContractAddress,
-      ],
-    });
+    if (chainId !== localChainId)
+      await run("verify:verify", {
+        address: gameContract.address,
+        contract: "contracts/Game.sol:Game",
+        constructorArguments: [
+          loogiesContractAddress,
+          // loogieCoinContractAddress,
+        ],
+      });
   } catch (error) {
     console.error(error);
   }
 
   // Getting a previously deployed contract
   // const YourContract = await ethers.getContract("YourContract", deployer);
-  /*  await YourContract.setPurpose("Hello");
+  // /*  await YourContract.setPurpose("Hello");
 
-    To take ownership of yourContract using the ownable library uncomment next line and add the
-    address you want to be the owner.
-    // await yourContract.transferOwnership(YOUR_ADDRESS_HERE);
+  //   To take ownership of yourContract using the ownable library uncomment next line and add the
+  //   address you want to be the owner.
+  //   // await yourContract.transferOwnership(YOUR_ADDRESS_HERE);
 
-    //const yourContract = await ethers.getContractAt('YourContract', "0xaAC799eC2d00C013f1F11c37E654e59B0429DF6A") //<-- if you want to instantiate a version of a contract at a specific address!
-  */
+  //   //const yourContract = await ethers.getContractAt('YourContract', "0xaAC799eC2d00C013f1F11c37E654e59B0429DF6A") //<-- if you want to instantiate a version of a contract at a specific address!
+  // */
 
   /*
   //If you want to send value to an address from the deployer
@@ -118,7 +118,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
   //     await run("verify:verify", {
   //       address: YourContract.address,
   //       contract: "contracts/YourContract.sol:YourContract",
-  //       contractArguments: [],
+  //       constructorArguments: [],
   //     });
   //   }
   // } catch (error) {
