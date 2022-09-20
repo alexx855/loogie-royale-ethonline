@@ -33,6 +33,7 @@ import { Transactor, Web3ModalSetup } from "./helpers";
 import { Home, ExampleUI, Hints, Subgraph } from "./views";
 import { useStaticJsonRPC } from "./hooks";
 import { gql, useQuery } from "@apollo/client";
+import { RampInstantSDK } from "@ramp-network/ramp-instant-sdk";
 
 function trimAddress(address) {
   // return address;
@@ -129,7 +130,7 @@ function App(props) {
   const location = useLocation();
 
   const targetNetwork = NETWORKS[selectedNetwork];
-  console.log("🚀 ~ file: App.jsx ~ line 123 ~ App ~ selectedNetwork", selectedNetwork);
+  // console.log("🚀 ~ file: App.jsx ~ line 123 ~ App ~ selectedNetwork", selectedNetwork);
 
   // 🔭 block explorer URL
   const blockExplorer = targetNetwork.blockExplorer;
@@ -140,10 +141,7 @@ function App(props) {
   ]);
   const mainnetProvider = useStaticJsonRPC(providers);
 
-  // if (DEBUG) console.log(`Using ${selectedNetwork} network`);
-
-  // 🛰 providers
-  if (DEBUG) console.log("📡 Connecting to Mainnet Ethereum");
+  if (DEBUG) console.log(`Using ${selectedNetwork} network`);
 
   const logoutOfWeb3Modal = async () => {
     await web3Modal.clearCachedProvider();
@@ -156,10 +154,10 @@ function App(props) {
   };
 
   /* 💵 This hook will get the price of ETH from 🦄 Uniswap: */
-  const price = useExchangeEthPrice(targetNetwork, mainnetProvider);
+  // const price = useExchangeEthPrice(targetNetwork, mainnetProvider);
 
   /* 🔥 This hook will get the price of Gas from ⛽️ EtherGasStation */
-  const gasPrice = useGasPrice(targetNetwork, "fast");
+  // const gasPrice = useGasPrice(targetNetwork, "fast");
   // Use your injected provider from 🦊 Metamask or if you don't have it then instantly generate a 🔥 burner wallet.
   const userProviderAndSigner = useUserProviderAndSigner(injectedProvider, localProvider, USE_BURNER_WALLET);
   const userSigner = userProviderAndSigner.signer;
@@ -182,7 +180,7 @@ function App(props) {
   // For more hooks, check out 🔗eth-hooks at: https://www.npmjs.com/package/eth-hooks
 
   // The transactor wraps transactions and provides notificiations
-  const tx = Transactor(userSigner, gasPrice);
+  const tx = Transactor(userSigner);
 
   // 🏗 scaffold-eth is full of handy hooks like this one to get your balance:
   const yourLocalBalance = useBalance(localProvider, address);
@@ -224,6 +222,7 @@ function App(props) {
   const width = 7; // TODO: get from contract
   const height = 7; // TODO: get from contract
 
+  // add players inside the game query, like i do for worldMatrixes
   const WORLD_QUERY_GRAPHQL = `
   {
     games {
@@ -237,6 +236,16 @@ function App(props) {
       gameOn,
       createdAt,
       curseCount
+    },
+    players {
+      id,
+      x,
+      y,
+      loogieId,
+      health,
+      lastActionTick,
+      lastActionBlock,
+      lastActionTime
     },
     worldMatrixes {
       id,
@@ -295,57 +304,6 @@ function App(props) {
     }
   }, [address, readContracts]);
 
-  const [playersData, setPlayersData] = useState();
-  const [currentPlayer, setCurrentPlayer] = useState();
-
-  useEffect(() => {
-    const updatePlayersData = async () => {
-      if (readContracts.Game) {
-        console.log("PARSE PLAYERS:::");
-        try {
-          let playersData = {};
-
-          if (data && data.worldMatrixes?.length > 0) {
-            const playersData = data.worldMatrixes.filter(world => world.player);
-            for (let players in playersData) {
-              const currentPosition = playersData[players];
-              console.log("loading info for ", currentPosition);
-              // TODO: review, save and get from state
-              const tokenURI = await readContracts.Game.tokenURIOf(currentPosition.player.id);
-              const jsonManifestString = Buffer.from(tokenURI.substring(29), "base64");
-              const jsonManifest = JSON.parse(jsonManifestString);
-
-              const currentPlayer = {
-                id: currentPosition.player.id,
-                loogieId: currentPosition.player.loogieId,
-                position: { x: currentPosition.x, y: currentPosition.y },
-                lastActionTick: parseInt(currentPosition.player.lastActionTick),
-                lastActionBlock: parseInt(currentPosition.player.lastActionBlock),
-                lastActionTime: parseInt(currentPosition.player.lastActionTime),
-                health: parseInt(currentPosition.player.health) || INI_HEALTH,
-                cursed: currentPosition.player.cursed || false,
-                image: jsonManifest.image,
-              };
-              playersData[currentPosition.player.id] = currentPlayer;
-              if (address && currentPosition.player.id.toLowerCase() === address.toLowerCase()) {
-                setCurrentPlayer(currentPlayer);
-              }
-            }
-          } else {
-            console.log("No players data");
-          }
-          console.log("final player info", playersData);
-          setPlayersData(playersData);
-        } catch (error) {
-          console.log(error);
-        }
-      } else {
-        console.log("Contracts not defined yet.");
-      }
-    };
-    updatePlayersData();
-  }, [address, data, readContracts.Game]);
-
   const s = 64;
   const squareW = s;
   const squareH = s;
@@ -370,17 +328,17 @@ function App(props) {
       writeContracts &&
       mainnetContracts
     ) {
-      console.log("_____________________________________ 🏗 scaffold-eth _____________________________________");
-      console.log("🌎 mainnetProvider", mainnetProvider);
-      console.log("🏠 localChainId", localChainId);
-      console.log("👩‍💼 selected address:", address);
-      console.log("🕵🏻‍♂️ selectedChainId:", selectedChainId);
-      console.log("💵 yourLocalBalance", yourLocalBalance ? ethers.utils.formatEther(yourLocalBalance) : "...");
-      console.log("💵 yourMainnetBalance", yourMainnetBalance ? ethers.utils.formatEther(yourMainnetBalance) : "...");
-      console.log("📝 readContracts", readContracts);
-      console.log("🌍 DAI contract on mainnet:", mainnetContracts);
-      console.log("💵 yourMainnetDAIBalance", myMainnetDAIBalance);
-      console.log("🔐 writeContracts", writeContracts);
+      // console.log("_____________________________________ 🏗 scaffold-eth _____________________________________");
+      // console.log("🌎 mainnetProvider", mainnetProvider);
+      // console.log("🏠 localChainId", localChainId);
+      // console.log("👩‍💼 selected address:", address);
+      // console.log("🕵🏻‍♂️ selectedChainId:", selectedChainId);
+      // console.log("💵 yourLocalBalance", yourLocalBalance ? ethers.utils.formatEther(yourLocalBalance) : "...");
+      // console.log("💵 yourMainnetBalance", yourMainnetBalance ? ethers.utils.formatEther(yourMainnetBalance) : "...");
+      // console.log("📝 readContracts", readContracts);
+      // console.log("🌍 DAI contract on mainnet:", mainnetContracts);
+      // console.log("💵 yourMainnetDAIBalance", myMainnetDAIBalance);
+      // console.log("🔐 writeContracts", writeContracts);
     }
   }, [
     mainnetProvider,
@@ -425,27 +383,87 @@ function App(props) {
 
   const faucetAvailable = localProvider && localProvider.connection && targetNetwork.name.indexOf("local") !== -1;
 
+  // TODO: set initial state
   const [currentGame, setCurrentGame] = useState([{}]);
-  // const [players, setPlayers] = useState([]);
+
+  const [playersData, setPlayersData] = useState();
+  const [currentPlayer, setCurrentPlayer] = useState();
+
+  // move to current player
   // const [playerCanMove, setPlayerCanMove] = useState(false);
 
-  // review this logic
   useEffect(() => {
-    const game = data?.games[0] || {};
-    // const players = data?.players || [];
-    // const playerCanMove = !(
-    //   (
-    //     currentPlayer &&
-    //     currentPlayer?.health > 0 &&
-    //     game.gameOn &&
-    //     data.worldMatrixes[currentPlayer.position.x][currentPlayer.position.y].cursed === false
-    //   )
-    //   // && game.ticker > currentPlayer?.lastAction
-    // );
-    setCurrentGame(game);
-    // setPlayers(players);
-    // setPlayerCanMove(playerCanMove);
-  }, [setCurrentGame]);
+    if (readContracts.Game) {
+      const updatePlayersData = async () => {
+        console.log("PARSING PLAYERS:::");
+        try {
+          if (data?.players && data?.players.length > 0) {
+            let newPlayersData = {};
+            for (const player of data.players) {
+              const currentPosition = player;
+              console.log("loading info for ", currentPosition);
+
+              // TODO: review, save and get from state
+              const tokenURI = await readContracts.Game.tokenURIOf(currentPosition.id);
+              const jsonManifestString = Buffer.from(tokenURI.substring(29), "base64");
+              const jsonManifest = JSON.parse(jsonManifestString);
+              const playerId = currentPosition.id.toLowerCase();
+              const currentPlayer = {
+                id: playerId,
+                loogieId: currentPosition.loogieId,
+                position: { x: currentPosition.x, y: currentPosition.y },
+                lastActionTick: parseInt(currentPosition.lastActionTick),
+                lastActionBlock: parseInt(currentPosition.lastActionBlock),
+                lastActionTime: parseInt(currentPosition.lastActionTime),
+                health: parseInt(currentPosition.health) || INI_HEALTH,
+                cursed: currentPosition.cursed || false,
+                image: jsonManifest.image,
+              };
+              newPlayersData[playerId] = currentPlayer;
+            }
+            console.log("final player info", newPlayersData);
+            setPlayersData(newPlayersData);
+          } else {
+            console.log("No players data");
+          }
+        } catch (error) {
+          console.log(error);
+        }
+      };
+
+      updatePlayersData();
+    } else {
+      console.log("Contracts not defined yet.");
+    }
+  }, [data, readContracts.Game]);
+
+  useEffect(() => {
+    // TODO: set initial state
+    setCurrentGame(data?.games[0] || {});
+  }, [data?.games]);
+
+  useEffect(() => {
+    if (playersData && address) {
+      setCurrentPlayer(playersData[address.toLowerCase()]);
+    }
+  }, [playersData, address, data?.games]);
+
+  const [priceRightNow, setPriceRightNow] = useState(false);
+  useEffect(() => {
+    const setPriceRightNowAsync = async () => {
+      if (readContracts.Loogies) {
+        try {
+          const priceRightNow = await readContracts.Loogies.price();
+          // console.log(ethers.utils.formatEther(priceRightNow));
+          setPriceRightNow(priceRightNow);
+        } catch (error) {
+          console.log(error);
+        }
+      }
+    };
+
+    setPriceRightNowAsync();
+  }, [readContracts.Loogies]);
 
   return (
     <div className="App">
@@ -469,7 +487,7 @@ function App(props) {
               localProvider={localProvider}
               userSigner={userSigner}
               mainnetProvider={mainnetProvider}
-              price={price}
+              // price={price}
               web3Modal={web3Modal}
               loadWeb3Modal={loadWeb3Modal}
               logoutOfWeb3Modal={logoutOfWeb3Modal}
@@ -527,7 +545,7 @@ function App(props) {
           ) : (
             <>
               {/* not current player and not playing, so its waiting for player to start a new game */}
-              {!currentPlayer && !currentGame.gameOn ? (
+              {!currentPlayer && currentGame.gameOn === false ? (
                 <div>
                   <div style={{ padding: 0, margin: "2rem" }}>
                     {loadingLoogies || (yourLoogies && yourLoogies.length > 0) ? (
@@ -560,12 +578,14 @@ function App(props) {
                               return (
                                 <List.Item key={id + "_" + item.uri + "_" + item.owner}>
                                   <Card
-                                    style={{
-                                      backgroundColor: "#b3e2f4",
-                                      border: "1px solid #0071bb",
-                                      borderRadius: 10,
-                                      marginRight: 10,
-                                    }}
+                                    style={
+                                      {
+                                        // backgroundColor: "#b3e2f4",
+                                        // border: "1px solid #0071bb",
+                                        // borderRadius: 10,
+                                        // marginRight: 10,
+                                      }
+                                    }
                                     headStyle={{ paddingRight: 12, paddingLeft: 12 }}
                                     title={
                                       <div>
@@ -576,11 +596,13 @@ function App(props) {
                                           disabled={currentGame && currentGame.gameOn}
                                           onClick={async () => {
                                             setLoadingLoogies(true);
-                                            tx(writeContracts.Game.register(id)).then(async () => {
+                                            try {
+                                              await tx(writeContracts.Game.register(id));
                                               if (DEBUG) console.log("Updating active player...");
-                                              refetch();
-                                              // setLoadingLoogies(false);
-                                            });
+                                            } catch (error) {
+                                              console.log("🚀 ~ file: App.jsx ~ line 621 ~ onClick={ ~ error", error);
+                                            }
+                                            setLoadingLoogies(false);
                                           }}
                                         >
                                           Register
@@ -608,16 +630,18 @@ function App(props) {
                     ) : (
                       <div style={{ minHeight: 200, fontSize: 30 }}>
                         <Card
-                          style={{
-                            backgroundColor: "#b3e2f4",
-                            border: "1px solid #0071bb",
-                            borderRadius: 10,
-                            marginRight: 10,
-                          }}
+                          style={
+                            {
+                              // backgroundColor: "#b3e2f4",
+                              // border: "1px solid #0071bb",
+                              // borderRadius: 10,
+                              // marginRight: 10,
+                            }
+                          }
                           title={
                             <div>
                               <span style={{ fontSize: 18, marginRight: 8, fontWeight: "bold" }}>
-                                Want to play? you need a Loogie!
+                                You need to own a Loogie to play:
                               </span>
                             </div>
                           }
@@ -626,31 +650,62 @@ function App(props) {
                             <p>
                               You can mint a <strong>Loogie</strong> here
                             </p>
+
                             <p>
                               <Button
                                 size="large"
+                                type="primary"
                                 shape="round"
+                                // disabled={canMint}
                                 onClick={async () => {
-                                  const priceRightNow = await readContracts.Loogies.price();
-                                  // console.log(priceRightNow);
-                                  setLoadingLoogies(true);
+                                  try {
+                                    setLoadingLoogies(true);
 
-                                  tx(writeContracts.Loogies.mintItem({ value: priceRightNow }), async function () {
-                                    try {
-                                      const { loogies, loogiesBalance } = await fetchLoogies(address, readContracts);
+                                    await tx(writeContracts.Loogies.mintItem({ value: priceRightNow }));
+                                    const { loogies, loogiesBalance } = await fetchLoogies(address, readContracts);
+
+                                    if (loogies && loogies.length > 0) {
                                       setYourLoogies(loogies.reverse());
-                                      setYourLoogiesBalance(loogiesBalance);
-                                    } catch (error) {
-                                      console.log("🚀 ~ file: App.jsx ~ line 794 ~ error", error);
                                     }
 
-                                    setLoadingLoogies(false);
-                                  });
+                                    if (loogiesBalance) {
+                                      setYourLoogiesBalance(loogiesBalance);
+                                    }
+                                  } catch (error) {
+                                    console.log("🚀 ~ file: App.jsx ~ line 673 ~ onClick={ ~ error", error);
+                                  }
+
+                                  setLoadingLoogies(false);
                                 }}
                               >
-                                Mint
+                                Mint for Ξ {ethers.utils.formatEther(priceRightNow)}
                               </Button>
                             </p>
+
+                            {/* TODO: link to marketplace to buy existing loogies */}
+                            {/* https://qx.app/collection/0x006eB613cc586198003a119485594ECbbDf41230 */}
+
+                            {/* TODO: test RAMP on optmism */}
+                            <div>
+                              <Button
+                                size="large"
+                                type="secondary"
+                                shape="round"
+                                onClick={() => {
+                                  new RampInstantSDK({
+                                    hostAppName: "scaffold-eth",
+                                    hostLogoUrl: "https://scaffoldeth.io/scaffold-eth.png",
+                                    swapAmount: priceRightNow, // 0.001 ETH in wei  ?
+                                    swapAsset: "ETH", // review, it should be OETH
+                                    userAddress: address,
+                                  })
+                                    .on("*", event => console.log(event))
+                                    .show();
+                                }}
+                              >
+                                Deposit using ramp
+                              </Button>
+                            </div>
                           </div>
                         </Card>
                       </div>
@@ -658,48 +713,49 @@ function App(props) {
                   </div>
                 </div>
               ) : (
-                // we have a current player, or the game is on
+                // we have a current player, or the game is already on
                 <div
                   style={{
                     position: "relative",
-                    background: "rgba(0,0,0,0.5)",
-                    // right: 0,
-                    // top: 0,
+                    // background: "rgba(0, 0, 0, 0.5)",
                     width: "100vw",
-                    height: "100vh",
+                    height: "auto",
                     overflow: "hidden",
-                    // zIndex: 9,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    maxWidth: "800px",
+                    margin: "20px auto",
                   }}
                 >
                   {/* game UI and data */}
                   <div
                     style={{
-                      position: "absolute",
+                      // position: "absolute",
                       // backgroundColor: "#b3e2f4",
-                      top: "0",
-                      left: "0",
+                      // top: "0",
+                      // left: "0",
                       width: "270px",
-                      zIndex: 11,
+                      // zIndex: 11,
                     }}
                   >
                     {/* Player related data */}
                     {currentPlayer && currentPlayer.id ? (
                       <>
-                        {playersData && playersData[currentPlayer.id] ? (
+                        {/* {playersData && playersData[currentPlayer.id] ? (
                           <img
                             alt={currentPlayer.id}
-                            src={playersData[currentPlayer.id]?.image.image}
+                            src={playersData[currentPlayer.id]?.image}
                             style={{
                               transform: "scale(3, 3)",
-                              width: "100%",
-                              height: "100%",
+                              width: "100",
+                              height: "100",
                               top: -20,
                               position: "absolute",
                               left: 0,
                               zIndex: 3,
                             }}
                           />
-                        ) : null}
+                        ) : null} */}
 
                         <ul
                           style={{
@@ -708,8 +764,7 @@ function App(props) {
                             marginTop: "10px",
                           }}
                         >
-                          <li>Game ID: {currentGame && currentGame.id ? currentGame.id : "no game"} </li>
-                          <li>Playing: {currentGame && currentGame.gameOn ? "yes" : "no"} </li>
+                          {/* <li>Playing: {currentGame && currentGame.gameOn ? "yes" : "no"} </li> */}
                           <li>Player: {trimAddress(currentPlayer.id)} </li>
                           <li>Loogie/Token ID: {currentPlayer.loogieId} </li>
                           <li>Health: {currentPlayer.health} </li>
@@ -731,9 +786,11 @@ function App(props) {
                             textAlign: "left",
                           }}
                         >
+                          {/* todo: move to game screen */}
                           {currentGame.winner !== "0x0000000000000000000000000000000000000000" ? (
                             <li>Las Winner: {`${currentGame.winner}`}</li>
                           ) : null}
+                          <li>Game ID: {currentGame && currentGame.id ? currentGame.id : "no game"} </li>
                           <li>Ticker: {currentGame.ticker}</li>
                           <li>NextCurse: {currentGame.nextCurse}</li>
                           <li>NextCurseIn: {currentGame.ticker - currentGame.nextCurse}</li>
@@ -741,13 +798,14 @@ function App(props) {
                       </>
                     ) : (
                       <>
-                        {/* There is a game, but it has not started yet */}
-                        <h3 style={{ fontSize: "1.5em", paddingLeft: "0.5em", paddingRight: "0.5em" }}>
-                          Waiting for {MAX_PLAYERS - data.worldMatrixes.filter(world => world.player).length} players{" "}
+                        {/* There is a game, but it has not started yet, so it should be waiting for other players */}
+                        <h3 style={{ fontSize: "1em", textAlign: "left", paddingLeft: "0.5em", paddingRight: "0.5em" }}>
+                          Waiting for {MAX_PLAYERS - data.worldMatrixes.filter(world => world.player).length} more
+                          players{" "}
                         </h3>
 
                         {/* TODO: handle unregister */}
-
+                        {/* 
                         {currentGame.id && currentGame.gameOn === false && (
                           <Button
                             size="large"
@@ -755,40 +813,42 @@ function App(props) {
                             disabled={currentGame && currentGame.gameOn}
                             style={{ marginBottom: "1em" }}
                             onClick={async () => {
-                              // setLoadingLoogies(true);
-                              // tx(writeContracts.Game.unregister(currentGame.id)).then(async () => {
-                              //   setLoadingLoogies(false);
-                              // });
+                              setLoadingLoogies(true);
+                              tx(writeContracts.Game.unregister(currentGame.id)).then(async () => {
+                                setLoadingLoogies(false);
+                              });
                             }}
                           >
                             Leave game {currentGame.id}
                           </Button>
-                        )}
+                        )} 
+                        */}
                       </>
                     )}
+
+                    {/* end ui data */}
                   </div>
 
                   {/* world matrix container */}
                   <div
                     style={{
-                      color: "#111111",
-                      fontWeight: "bold",
+                      // color: "#111111",
+                      // fontWeight: "bold",
                       width: width * squareW,
                       height: height * squareH,
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      marginTop: (-height * squareH) / 2,
-                      marginLeft: (-width * squareW) / 2,
-                      backgroundColor: "#b3e2f4",
+                      position: "relative",
+                      // top: "50%",
+                      // left: "50%",
+                      // marginTop: (-height * squareH) / 2,
+                      // marginLeft: (-width * squareW) / 2,
+                      // backgroundColor: "#b3e2f4",
                       opacity: !currentGame || !currentGame.gameOn ? 0.5 : 1,
-                      zIndex: 1,
+                      // zIndex: 1,
                     }}
                   >
                     {/* world matrix */}
                     {data.worldMatrixes.map((world, index) => {
                       const { x, y, player, healthAmountToCollect, cursed } = world;
-                      console.log("🚀 ~ file: App.jsx ~ line 766 ~ {data.worldMatrixes.map ~ cursed", cursed);
 
                       const healthHere = parseInt(healthAmountToCollect);
 
@@ -896,7 +956,7 @@ function App(props) {
 
           <Contract
             name="Game"
-            price={price}
+            // price={price}
             signer={userSigner}
             provider={localProvider}
             address={address}
@@ -905,7 +965,7 @@ function App(props) {
           />
           <Contract
             name="Loogies"
-            price={price}
+            // price={price}
             signer={userSigner}
             provider={localProvider}
             address={address}
@@ -914,7 +974,7 @@ function App(props) {
           />
           <Contract
             name="YourContract"
-            price={price}
+            // price={price}
             signer={userSigner}
             provider={localProvider}
             address={address}
@@ -927,7 +987,7 @@ function App(props) {
             address={address}
             yourLocalBalance={yourLocalBalance}
             mainnetProvider={mainnetProvider}
-            price={price}
+            // price={price}
           />
         </Route>
         <Route path="/exampleui">
@@ -937,7 +997,7 @@ function App(props) {
             mainnetProvider={mainnetProvider}
             localProvider={localProvider}
             yourLocalBalance={yourLocalBalance}
-            price={price}
+            // price={price}
             tx={tx}
             writeContracts={writeContracts}
             readContracts={readContracts}
@@ -979,44 +1039,18 @@ function App(props) {
       <ThemeSwitch />
 
       {/* 🗺 Extra UI like gas price, eth price, faucet, and support: */}
-      <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 20, padding: 10 }}>
-        <Row align="middle" gutter={[4, 4]}>
-          <Col span={8}>
-            <Ramp price={price} address={address} networks={NETWORKS} />
-          </Col>
-
-          <Col span={8} style={{ textAlign: "center", opacity: 0.8 }}>
-            <GasGauge gasPrice={gasPrice} />
-          </Col>
-          <Col span={8} style={{ textAlign: "center", opacity: 1 }}>
-            <Button
-              onClick={() => {
-                window.open("https://t.me/joinchat/KByvmRe5wkR-8F_zz6AjpA");
-              }}
-              size="large"
-              shape="round"
-            >
-              <span style={{ marginRight: 8 }} role="img" aria-label="support">
-                💬
-              </span>
-              Support
-            </Button>
-          </Col>
-        </Row>
-
-        <Row align="middle" gutter={[4, 4]}>
-          <Col span={24}>
-            {
-              /*  if the local provider has a signer, let's show the faucet:  */
-              faucetAvailable ? (
-                <Faucet localProvider={localProvider} price={price} ensProvider={mainnetProvider} />
-              ) : (
-                ""
-              )
-            }
-          </Col>
-        </Row>
-      </div>
+      {DEBUG && (
+        <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 20, padding: 10 }}>
+          <Row align="middle" gutter={[4, 4]}>
+            <Col span={24}>
+              {
+                /*  if the local provider has a signer, let's show the faucet:  */
+                faucetAvailable ? <Faucet localProvider={localProvider} ensProvider={mainnetProvider} /> : ""
+              }
+            </Col>
+          </Row>
+        </div>
+      )}
     </div>
   );
 }

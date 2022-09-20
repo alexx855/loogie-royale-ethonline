@@ -144,8 +144,8 @@ contract Game is Ownable {
                 // uint8 side = j != 0 ? j % (width - i) : 1;
                 uint8 corner = j % (fields / 4);
 
-                console.log("%s %s %s", x, y, j);
-                console.log("i %s corner %s", i, corner);
+                // console.log("%s %s %s", x, y, j);
+                // console.log("i %s corner %s", i, corner);
                 // console.log("dx %s dy %s", dx, dy);
 
                 if (corner == 0) {
@@ -187,7 +187,7 @@ contract Game is Ownable {
                     y--;
                 }
             }
-            console.log("--");
+            // console.log("--");
         }
     }
 
@@ -253,14 +253,13 @@ contract Game is Ownable {
         return worldMatrixRings[ringIndex];
     }
 
-    function update(address newContract) public {
-        // require(gameOn, "NOT PLAYING");
-        // require(tx.origin == msg.sender, "MUST BE AN EOA");
+    function update(address newAddress) public {
+        require(gameOn, "NOT PLAYING");
+        require(tx.origin == msg.sender, "MUST BE AN EOA");
         // require(yourContract[tx.origin] != address(0), "MUST HAVE A CONTRACT");
         health[tx.origin] = (health[tx.origin] * 80) / 100; //20% loss of health on contract update?!!? lol
-        yourContract[tx.origin] = newContract;
+        yourContract[tx.origin] = newAddress;
     }
-
 
     // function unregister(uint256 loogieId) public {
     //     require(gameOn != true, "TOO LATE, GAME IS ALREADY STARTED");
@@ -272,7 +271,7 @@ contract Game is Ownable {
     //     );
 
     //     // players.push(tx.origin);
-        
+
     //     // yourContract[tx.origin] = msg.sender;
 
     //     // health[tx.origin] = 100;
@@ -280,7 +279,7 @@ contract Game is Ownable {
     //     // loogies[tx.origin] = loogieId;
 
     //     // delete player from position
-    //     // yourPosition[tx.origin] 
+    //     // yourPosition[tx.origin]
 
     //     // delete player on the worldmatrix
     //     delete worldMatrix[playerPosition.x][playerPosition.y].player;
@@ -293,7 +292,7 @@ contract Game is Ownable {
     //     );
 
     // }
-   
+
     function register(uint256 loogieId) public {
         require(gameOn != true, "TOO LATE, GAME IS ALREADY STARTED");
         require(yourContract[tx.origin] == address(0), "Already registered");
@@ -360,7 +359,8 @@ contract Game is Ownable {
     }
 
     function tokenURIOf(address player) public view returns (string memory) {
-        // require (yourContract[player] != address(0), "MUST HAVE A CONTRACT");
+        require(yourContract[player] != address(0), "Must have a contract");
+        require(loogies[player] != 0, "Must have a loogie");
 
         // if loogie dead add gray filter
 
