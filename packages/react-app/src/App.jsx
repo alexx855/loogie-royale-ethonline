@@ -1,43 +1,24 @@
-import { Button, Col, Row, Card, List, Menu, Tooltip } from "antd";
+import { Button, Card, List, Menu, Tooltip } from "antd";
 // import Blockies from "react-blockies";
 import "antd/dist/antd.css";
-import {
-  useBalance,
-  useContractLoader,
-  useContractReader,
-  useGasPrice,
-  useOnBlock,
-  useUserProviderAndSigner,
-} from "eth-hooks";
-import { useExchangeEthPrice } from "eth-hooks/dapps/dex";
+import { useBalance, useContractLoader, useContractReader, useOnBlock, useUserProviderAndSigner } from "eth-hooks";
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, Route, Switch, useLocation } from "react-router-dom";
 import "./App.css";
-import {
-  Account,
-  Contract,
-  Faucet,
-  GasGauge,
-  Header,
-  Ramp,
-  ThemeSwitch,
-  NetworkDisplay,
-  FaucetHint,
-  NetworkSwitch,
-} from "./components";
+import { Account, Contract, Header, ThemeSwitch, NetworkDisplay, FaucetHint, NetworkSwitch } from "./components";
 import { NETWORKS, ALCHEMY_KEY } from "./constants";
 import externalContracts from "./contracts/external_contracts";
 // contracts
 import deployedContracts from "./contracts/hardhat_contracts.json";
 import { Transactor, Web3ModalSetup } from "./helpers";
-import { Home, ExampleUI, Hints, Subgraph } from "./views";
+import { Subgraph } from "./views";
 import { useStaticJsonRPC } from "./hooks";
 import { gql, useQuery } from "@apollo/client";
 import { RampInstantSDK } from "@ramp-network/ramp-instant-sdk";
 
 function trimAddress(address) {
   // return address;
-  return "0x" + address.slice(2, 5) + "..." + address.substring(address.length - 3, address.length);
+  return "0x" + address.substring(2, 5) + "..." + address.substring(address.length - 3, address.length);
 }
 
 const fetchLoogies = async (address, readContracts) => {
@@ -218,7 +199,6 @@ function App(props) {
   // const { gameBlock, setGameBlock } = useState(10);
 
   // keep track of a variable from the contract in the local React state:
-  const purpose = useContractReader(readContracts, "YourContract", "purpose");
   const width = 7; // TODO: get from contract
   const height = 7; // TODO: get from contract
 
@@ -267,7 +247,7 @@ function App(props) {
   }
   `;
   const WORLD_QUERY_GQL = gql(WORLD_QUERY_GRAPHQL);
-  const { loading, error, data, refetch } = useQuery(WORLD_QUERY_GQL, {
+  const { loading, error, data } = useQuery(WORLD_QUERY_GQL, {
     pollInterval: 1000,
     // pollInterval: 2500,
     fetchPolicy: "network-only", // Doesn't check cache before making a network request
@@ -304,6 +284,7 @@ function App(props) {
     }
   }, [address, readContracts]);
 
+  // todo: move out of here
   const s = 64;
   const squareW = s;
   const squareH = s;
@@ -380,8 +361,6 @@ function App(props) {
       loadWeb3Modal();
     }
   }, [loadWeb3Modal]);
-
-  const faucetAvailable = localProvider && localProvider.connection && targetNetwork.name.indexOf("local") !== -1;
 
   // TODO: set initial state
   const [currentGame, setCurrentGame] = useState([{}]);
@@ -468,7 +447,11 @@ function App(props) {
   return (
     <div className="App">
       {/* ✏️ Edit the header and change the title to your project name */}
-      <Header>
+      <Header
+        link={"https://github.com/alexx855/loogie-royale-ethonline"}
+        title={"⚔️ Loogie Royale"}
+        subTitle={"A web3 battle royale game with loogies!"}
+      >
         {/* 👨‍💼 Your account is in the top right with a wallet at connect options */}
         <div style={{ position: "relative", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", flex: 1 }}>
@@ -486,8 +469,9 @@ function App(props) {
               address={address}
               localProvider={localProvider}
               userSigner={userSigner}
-              mainnetProvider={mainnetProvider}
-              // price={price}
+              mainnetProvider={false}
+              // mainnetProvider={mainnetProvider}
+              price={1}
               web3Modal={web3Modal}
               loadWeb3Modal={loadWeb3Modal}
               logoutOfWeb3Modal={logoutOfWeb3Modal}
@@ -497,34 +481,20 @@ function App(props) {
         </div>
       </Header>
       {yourLocalBalance.lte(ethers.BigNumber.from("0")) && (
-        <FaucetHint localProvider={localProvider} targetNetwork={targetNetwork} address={address} />
+        <FaucetHint
+          localProvider={localProvider}
+          targetNetwork={targetNetwork}
+          address={address}
+          value={ethers.utils.parseEther("1")}
+        />
       )}
-      <NetworkDisplay
-        NETWORKCHECK={NETWORKCHECK}
-        localChainId={localChainId}
-        selectedChainId={selectedChainId}
-        targetNetwork={targetNetwork}
-        logoutOfWeb3Modal={logoutOfWeb3Modal}
-        USE_NETWORK_SELECTOR={USE_NETWORK_SELECTOR}
-      />
+
       <Menu style={{ textAlign: "center", marginTop: 20 }} selectedKeys={[location.pathname]} mode="horizontal">
         <Menu.Item key="/">
-          <Link to="/">App Home</Link>
-        </Menu.Item>
-        <Menu.Item key="/play">
-          <Link to="/play">Play</Link>
+          <Link to="/">Game</Link>
         </Menu.Item>
         <Menu.Item key="/debug">
           <Link to="/debug">Debug Contracts</Link>
-        </Menu.Item>
-        <Menu.Item key="/hints">
-          <Link to="/hints">Hints</Link>
-        </Menu.Item>
-        <Menu.Item key="/exampleui">
-          <Link to="/exampleui">ExampleUI</Link>
-        </Menu.Item>
-        <Menu.Item key="/mainnetdai">
-          <Link to="/mainnetdai">Mainnet DAI</Link>
         </Menu.Item>
         <Menu.Item key="/subgraph">
           <Link to="/subgraph">Subgraph</Link>
@@ -533,11 +503,6 @@ function App(props) {
 
       <Switch>
         <Route exact path="/">
-          {/* pass in any web3 props to this Home component. For example, yourLocalBalance */}
-          <Home yourLocalBalance={yourLocalBalance} readContracts={readContracts} />
-        </Route>
-
-        <Route exact path="/play">
           {loading ? (
             <p>Loading graph...</p>
           ) : error ? (
@@ -595,14 +560,14 @@ function App(props) {
                                           shape="round"
                                           disabled={currentGame && currentGame.gameOn}
                                           onClick={async () => {
-                                            setLoadingLoogies(true);
                                             try {
+                                              setLoadingLoogies(true);
                                               await tx(writeContracts.Game.register(id));
                                               if (DEBUG) console.log("Updating active player...");
                                             } catch (error) {
                                               console.log("🚀 ~ file: App.jsx ~ line 621 ~ onClick={ ~ error", error);
+                                              setLoadingLoogies(false);
                                             }
-                                            setLoadingLoogies(false);
                                           }}
                                         >
                                           Register
@@ -720,11 +685,13 @@ function App(props) {
                     // background: "rgba(0, 0, 0, 0.5)",
                     width: "100vw",
                     height: "auto",
-                    overflow: "hidden",
                     display: "flex",
                     justifyContent: "space-between",
                     maxWidth: "800px",
-                    margin: "20px auto",
+                    overflow: "hidden",
+                    // overflow: "visible",
+                    margin: "1em auto",
+                    padding: "2em",
                   }}
                 >
                   {/* game UI and data */}
@@ -864,28 +831,32 @@ function App(props) {
                             top: squareH * y,
                             overflow: "visible",
                             background: (x + y) % 2 ? "#BBBBBB" : "#EEEEEE",
+                            cursor: "pointer",
                           }}
+                          className="world-square"
+                          // onClick={() => {
                         >
                           {player && (
                             <>
-                              <Tooltip title={`${player.id}  `}>
-                                <span
-                                  style={{
-                                    position: "absolute",
-                                    bottom: 0,
-                                    left: 0,
-                                    textAlign: "center",
-                                    width: "100%",
-                                    fontSize: "1.5rem",
-                                    color: "red",
-                                    fontWeight: "bold",
-                                    textShadow: "0 0 5px black",
-                                    zIndex: 4,
-                                  }}
-                                >
-                                  {player.health}
-                                </span>
-                              </Tooltip>
+                              {/* <Tooltip title={`${trimAddress(player.id)}  `}> */}
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  bottom: 0,
+                                  left: 0,
+                                  textAlign: "center",
+                                  width: "100%",
+                                  fontSize: "1.5rem",
+                                  lineHeight: 1,
+                                  color: "red",
+                                  fontWeight: "bold",
+                                  textShadow: "0 0 5px black",
+                                  zIndex: 4,
+                                }}
+                              >
+                                {player.health}
+                              </span>
+                              {/* </Tooltip> */}
                               {/* TODO: save image url to the graph ?? */}
                               {playersData && playersData[player.id]?.image ? (
                                 <img
@@ -948,12 +919,6 @@ function App(props) {
         </Route>
 
         <Route exact path="/debug">
-          {/*
-                🎛 this scaffolding is full of commonly used components
-                this <Contract/> component will automatically parse your ABI
-                and give you a form to interact with it locally
-            */}
-
           <Contract
             name="Game"
             // price={price}
@@ -972,60 +937,8 @@ function App(props) {
             blockExplorer={blockExplorer}
             contractConfig={contractConfig}
           />
-          <Contract
-            name="YourContract"
-            // price={price}
-            signer={userSigner}
-            provider={localProvider}
-            address={address}
-            blockExplorer={blockExplorer}
-            contractConfig={contractConfig}
-          />
         </Route>
-        <Route path="/hints">
-          <Hints
-            address={address}
-            yourLocalBalance={yourLocalBalance}
-            mainnetProvider={mainnetProvider}
-            // price={price}
-          />
-        </Route>
-        <Route path="/exampleui">
-          <ExampleUI
-            address={address}
-            userSigner={userSigner}
-            mainnetProvider={mainnetProvider}
-            localProvider={localProvider}
-            yourLocalBalance={yourLocalBalance}
-            // price={price}
-            tx={tx}
-            writeContracts={writeContracts}
-            readContracts={readContracts}
-            purpose={purpose}
-          />
-        </Route>
-        <Route path="/mainnetdai">
-          <Contract
-            name="DAI"
-            customContract={mainnetContracts && mainnetContracts.contracts && mainnetContracts.contracts.DAI}
-            signer={userSigner}
-            provider={mainnetProvider}
-            address={address}
-            blockExplorer="https://etherscan.io/"
-            contractConfig={contractConfig}
-            chainId={1}
-          />
-          {/*
-            <Contract
-              name="UNI"
-              customContract={mainnetContracts && mainnetContracts.contracts && mainnetContracts.contracts.UNI}
-              signer={userSigner}
-              provider={mainnetProvider}
-              address={address}
-              blockExplorer="https://etherscan.io/"
-            />
-            */}
-        </Route>
+
         <Route path="/subgraph">
           <Subgraph
             subgraphUri={props.subgraphUri}
@@ -1037,20 +950,6 @@ function App(props) {
       </Switch>
 
       <ThemeSwitch />
-
-      {/* 🗺 Extra UI like gas price, eth price, faucet, and support: */}
-      {DEBUG && (
-        <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 20, padding: 10 }}>
-          <Row align="middle" gutter={[4, 4]}>
-            <Col span={24}>
-              {
-                /*  if the local provider has a signer, let's show the faucet:  */
-                faucetAvailable ? <Faucet localProvider={localProvider} ensProvider={mainnetProvider} /> : ""
-              }
-            </Col>
-          </Row>
-        </div>
-      )}
     </div>
   );
 }

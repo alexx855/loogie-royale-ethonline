@@ -68,7 +68,14 @@ export default function Account({
       {address && (
         <Address address={address} ensProvider={mainnetProvider} blockExplorer={blockExplorer} fontSize={20} />
       )}
-      <Balance address={address} provider={localProvider} price={price} size={20} />
+      <Balance
+        address={address}
+        provider={localProvider}
+        // TODO: move to props
+        dollarMode={false}
+        price={price}
+        size={20}
+      />
       {!isContract && (
         <Wallet
           address={address}

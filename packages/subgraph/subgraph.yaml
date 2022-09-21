@@ -7,7 +7,7 @@ dataSources:
     network: localhost
     source:
       abi: Game
-      address: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+      address: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318"
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.5
@@ -20,14 +20,15 @@ dataSources:
         - name: Game
           file: ./abis/localhost_Game.json
       eventHandlers:
-        - event: Restart(uint8,uint8,address)
-          handler: handleRestart
-        - event: Register(indexed address,indexed address,uint8,uint8,uint256,bool)
-          handler: handleRegister
-        - event: Move(indexed address,uint8,uint8,uint256,uint256)
+        - event: Move(uint256,indexed address,uint8,uint8,uint256,uint256)
           handler: handleMove
-        - event: NewCurseDrop((uint8,uint8)[],uint8,uint256,uint256)
+        - event: NewCurseDrop(uint256,(uint8,uint8)[],uint8,uint256,uint256)
           handler: handleNewCurseDrop
-        - event: NewHealthDrop(uint256,uint8,uint8,uint8,uint8,uint256)
+        - event: NewHealthDrop(uint256,uint256,uint8,uint8,uint8,uint8,uint256)
           handler: handleHealthNewDrop
+        - event: Register(indexed address,indexed
+            address,uint256,bool,uint8,uint8,uint256)
+          handler: handleRegister
+        - event: Restart(uint256,uint8,uint8,address)
+          handler: handleRestart
       file: ./src/mapping.ts

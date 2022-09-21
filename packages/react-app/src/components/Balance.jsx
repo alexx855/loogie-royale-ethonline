@@ -30,7 +30,7 @@ const { utils } = require("ethers");
 **/
 
 export default function Balance(props) {
-  const [dollarMode, setDollarMode] = useState(true);
+  const [dollarMode, setDollarMode] = useState(typeof props.dollarMode !== "undefined" ? props.dollarMode : true);
 
   const balance = useBalance(props.provider, props.address);
   let floatBalance = parseFloat("0.00");
@@ -62,7 +62,9 @@ export default function Balance(props) {
         cursor: "pointer",
       }}
       onClick={() => {
-        setDollarMode(!dollarMode);
+        if (props.dollarMode && props.dollarMode === true) {
+          setDollarMode(!dollarMode);
+        }
       }}
     >
       {displayBalance}

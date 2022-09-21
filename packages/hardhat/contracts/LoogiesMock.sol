@@ -21,13 +21,15 @@ contract Loogies is ERC721Enumerable, Ownable {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
+    // TODO: allow admin to change recipient
     // all funds go to buidlguidl.eth
     address payable public constant recipient =
         payable(0xa81a6a910FeD20374361B35C451a4a44F86CeD46);
-
-    uint256 public constant limit = 3728;
-    uint256 public constant curve = 1002; // price increase 0,4% with each purchase
+    // TODO: allow admin to change the price
     uint256 public price = 0.001 ether;
+
+    // uint256 public constant limit = 3728;
+    // uint256 public constant curve = 1002; // price increase 0,4% with each purchase
     // the 1154th  loogies cost 0.01 ETH, the 2306th cost 0.1ETH, the 3459th cost 1 ETH and the last ones cost 1.7 ETH
 
     mapping(uint256 => bytes3) public color;
@@ -39,10 +41,10 @@ contract Loogies is ERC721Enumerable, Ownable {
     }
 
     function mintItem() public payable returns (uint256) {
-        require(_tokenIds.current() < limit, "DONE MINTING");
+        // require(_tokenIds.current() < limit, "DONE MINTING");
         require(msg.value >= price, "NOT ENOUGH");
 
-        price = (price * curve) / 1000;
+        // price = (price * curve) / 1000;
 
         _tokenIds.increment();
 

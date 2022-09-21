@@ -2,6 +2,7 @@ version: "3"
 services:
   graph-node:
     image: graphprotocol/graph-node:latest
+    restart: always
     ports:
       - "8000:8000"
       - "8001:8001"
@@ -23,12 +24,14 @@ services:
     - "host.docker.internal:host-gateway"
   ipfs:
     image: ipfs/go-ipfs:v0.10.0
+    restart: always
     ports:
       - "5001:5001"
     volumes:
       - ./data/ipfs:/data/ipfs
   postgres:
     image: postgres
+    restart: always
     ports:
       - "5432:5432"
     command: ["postgres", "-cshared_preload_libraries=pg_stat_statements"]

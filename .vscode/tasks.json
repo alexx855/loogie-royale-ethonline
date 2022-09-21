@@ -47,6 +47,22 @@
         },
         {
             "type": "npm",
+            "script": "run-graph-node",
+            "problemMatcher": [],
+            "label": "yarn: run-graph-node",
+            "detail": "yarn workspace @scaffold-eth/services run-graph-node",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "runOptions": {
+                "runOn": "folderOpen"
+            },
+            "group": "none",
+            "dependsOn": ["yarn: chain"],
+        },
+        {
+            "type": "npm",
             "script": "watch",
             "problemMatcher": [],
             "label": "yarn: deploy",
@@ -59,7 +75,8 @@
                 "runOn": "folderOpen"
             },
             "group": "none",
-            "dependsOn": ["yarn: chain"],
+            "dependsOn": ["yarn: chain", "yarn: run-graph-node"],
         }
+        
     ]
 }

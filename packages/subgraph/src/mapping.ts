@@ -9,11 +9,11 @@ import {
 import { WorldMatrix, Player, Game } from "../generated/schema";
 
 export function handleRestart(event: Restart): void {
-  // let gameString = event.params.gameId.toString();
+  let gameString = event.params.gameId.toString();
 
-  let game = Game.load("hackfs");
+  let game = Game.load(gameString);
   if (game === null) {
-    game = new Game("hackfs");
+    game = new Game(gameString);
   }
 
   game.height = event.params.height;
@@ -75,7 +75,7 @@ export function handleRegister(event: Register): void {
 
   // check if gameOn, when last player is registered and update game
   if (event.params.gameOn) {
-    let gameString = "hackfs";
+    let gameString = event.params.gameId.toString();
     const game = Game.load(gameString);
     if (game !== null) {
       game.gameOn = true;
@@ -85,51 +85,53 @@ export function handleRegister(event: Register): void {
 }
 
 export function handleMove(event: Move): void {
-  let gameString = "hackfs";
+  const gameString = event.params.gameId.toString();
   const game = Game.load(gameString);
+
   if (game !== null) {
     game.ticker = event.params.gameTicker;
     game.save();
-  }
 
-  let playerString = event.params.txOrigin.toHexString();
-  let player = Player.load(playerString);
+    let playerString = event.params.txOrigin.toHexString();
+    let player = Player.load(playerString);
 
-  if (player !== null) {
-    const oldX = player.x;
-    const oldY = player.y;
+    if (player !== null) {
+      const oldX = player.x;
+      const oldY = player.y;
 
-    // update player data
-    player.health = event.params.health;
-    player.x = event.params.x;
-    player.y = event.params.y;
-    player.lastActionTick = event.params.gameTicker;
-    player.lastActionTime = event.block.timestamp;
-    player.lastActionBlock = event.block.number;
-    player.save();
+      // update player data
+      player.health = event.params.health;
+      player.x = event.params.x;
+      player.y = event.params.y;
+      player.lastActionTick = event.params.gameTicker;
+      player.lastActionTime = event.block.timestamp;
+      player.lastActionBlock = event.block.number;
+      player.save();
 
-    const oldFieldId = oldX.toString() + "-" + oldY.toString();
-    let oldField = WorldMatrix.load(oldFieldId);
+      const oldFieldId = oldX.toString() + "-" + oldY.toString();
+      let oldField = WorldMatrix.load(oldFieldId);
 
-    const fieldId = event.params.x.toString() + "-" + event.params.y.toString();
-    let field = WorldMatrix.load(fieldId);
+      const fieldId =
+        event.params.x.toString() + "-" + event.params.y.toString();
+      let field = WorldMatrix.load(fieldId);
 
-    // check if player is not on the same field
-    if (event.params.x !== oldX || event.params.y !== oldY) {
-      // remove player from old field
-      if (oldField !== null) {
-        oldField.player = null;
-        oldField.save();
+      // check if player is not on the same field
+      if (event.params.x !== oldX || event.params.y !== oldY) {
+        // remove player from old field
+        if (oldField !== null) {
+          oldField.player = null;
+          oldField.save();
+        }
+
+        // move player to new field
+        if (field !== null) {
+          field.player = playerString;
+          field.healthAmountToCollect = BigInt.fromI32(0);
+          field.save();
+        }
+      } else {
+        // user did not move, so user fought
       }
-
-      // move player to new field
-      if (field !== null) {
-        field.player = playerString;
-        field.healthAmountToCollect = BigInt.fromI32(0);
-        field.save();
-      }
-    } else {
-      // user did not move, so user fought
     }
   }
 }
@@ -137,14 +139,14 @@ export function handleMove(event: Move): void {
 export function handleHealthNewDrop(event: NewHealthDrop): void {
   // update ticker
   const gameTicker = event.params.gameTicker;
-  const gameString = "hackfs";
+  const gameString = event.params.gameId.toString();
   const game = Game.load(gameString);
   if (game !== null) {
     game.ticker = gameTicker;
     game.save();
   }
 
-  // remove old drop
+  // remove old drop, if there is one
   const oldFieldId =
     event.params.oldX.toString() + "-" + event.params.oldY.toString();
   let oldField = WorldMatrix.load(oldFieldId);
@@ -176,9 +178,7 @@ export function handleNewCurseDrop(event: NewCurseDrop): void {
   const curseDropCount = event.params.curseDropCount;
   const nextCurse = event.params.nextCurse;
   const gameTicker = event.params.gameTicker;
-
-  // TODO: support for multiple games, allow players to create or join games
-  const gameString = "openhack";
+  const gameString = event.params.gameId.toString();
 
   const game = Game.load(gameString);
   if (game !== null) {

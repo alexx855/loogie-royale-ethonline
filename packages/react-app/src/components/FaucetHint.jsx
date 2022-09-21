@@ -5,7 +5,7 @@ import { useBalance, useGasPrice } from "eth-hooks";
 
 import { Transactor } from "../helpers";
 
-function FaucetHint({ localProvider, targetNetwork, address }) {
+function FaucetHint({ localProvider, targetNetwork, address, value = ethers.utils.parseEther("0.01") }) {
   const [faucetClicked, setFaucetClicked] = useState(false);
 
   // fetch local balance
@@ -34,7 +34,7 @@ function FaucetHint({ localProvider, targetNetwork, address }) {
           onClick={() => {
             faucetTx({
               to: address,
-              value: ethers.utils.parseEther("0.01"),
+              value: value,
             });
             setFaucetClicked(true);
           }}

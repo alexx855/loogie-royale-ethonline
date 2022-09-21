@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
 enum MoveDirection {
@@ -22,14 +23,18 @@ abstract contract LoogiesContract {
 }
 
 contract Game is Ownable {
-    event Restart(uint8 width, uint8 height, address winner);
+    using Counters for Counters.Counter;
+    Counters.Counter private _gameIds;
+
+    event Restart(uint256 gameId, uint8 width, uint8 height, address winner);
     event Register(
         address indexed txOrigin,
         address indexed msgSender,
+        uint256 gameId,
+        bool gameOn,
         uint8 x,
         uint8 y,
-        uint256 loogieId,
-        bool gameOn
+        uint256 loogieId
     );
     // event Unregister(
     //     address indexed txOrigin,
@@ -37,6 +42,7 @@ contract Game is Ownable {
     //     uint256 loogieId
     // );
     event Move(
+        uint256 gameId,
         address indexed txOrigin,
         uint8 x,
         uint8 y,
@@ -44,12 +50,14 @@ contract Game is Ownable {
         uint256 gameTicker
     );
     event NewCurseDrop(
+        uint256 gameId,
         Position[] cursePositions,
         uint8 curseDropCount,
         uint256 nextCurse,
         uint256 gameTicker
     );
     event NewHealthDrop(
+        uint256 gameId,
         uint256 amount,
         uint8 dropX,
         uint8 dropY,
@@ -57,7 +65,6 @@ contract Game is Ownable {
         uint8 oldY,
         uint256 gameTicker
     );
-    event GameOver(address indexed player, uint256 gameTicker); // TODO: emmit winner, mint POAP to loogie owner
 
     struct Field {
         address player;
@@ -74,14 +81,14 @@ contract Game is Ownable {
 
     bool public gameOn = false;
     uint256 public gameTicker;
-    uint8 public gameId = 1; // TODO: counter? allow multiple games?
+    uint256 public gameId = _gameIds.current();
     uint8 public curseDuration = 10;
     uint8 public curseDropCount = 0;
+    uint8 public constant curseDropMax =
+        (width / 2) % 1 == 0 ? width / 2 : width / 2 + 1;
     uint256 public nextCurse;
     uint8 public constant width = 7;
     uint8 public constant height = 7;
-    uint8 public constant curseDropMax =
-        (width / 2) % 1 == 0 ? width / 2 : width / 2 + 1;
     Position public centerPosition;
 
     Field[width][height] public worldMatrix;
@@ -90,8 +97,8 @@ contract Game is Ownable {
 
     // spanwPoints on corners
     Position[4] public spawnPoints;
+    // TODO: refactor name at least
     mapping(uint8 => Position[]) public worldMatrixRings;
-    // mapping(uint8 => mapping(uint8 => Position)) public worldMatrixRings;
     mapping(address => address) public yourContract;
     mapping(address => Position) public yourPosition;
     mapping(address => uint256) public health;
@@ -195,11 +202,16 @@ contract Game is Ownable {
         dropOnCollect = _dropOnCollect;
     }
 
+    // restart everything, starts a new game and wait for players to join the new game
     function restart(address winner) internal {
-        // TODO: increase gameId, or create a new game?
+        _gameIds.increment();
+        uint256 newGameId = _gameIds.current();
         gameOn = false;
+
+        // TODO: refactor to use counter util
         gameTicker = 0;
         curseDropCount = 0;
+
         restartBlockNumber = block.number;
         tickerBlock = block.number;
         nextCurse = gameTicker + curseDuration;
@@ -223,7 +235,8 @@ contract Game is Ownable {
 
         delete players;
 
-        emit Restart(width, height, winner);
+        // emmit next curse? or curseDuration?
+        emit Restart(newGameId, width, height, winner);
     }
 
     function getBlockNumber() public view returns (uint256) {
@@ -293,6 +306,7 @@ contract Game is Ownable {
 
     // }
 
+    // player register a loogie and try to join the active game
     function register(uint256 loogieId) public {
         require(gameOn != true, "TOO LATE, GAME IS ALREADY STARTED");
         require(yourContract[tx.origin] == address(0), "Already registered");
@@ -322,13 +336,16 @@ contract Game is Ownable {
             gameOn = true;
         }
 
+        uint256 currentGameId = _gameIds.current();
+
         emit Register(
             tx.origin,
             msg.sender,
+            currentGameId,
+            gameOn,
             playerPosition.x,
             playerPosition.y,
-            loogieId,
-            gameOn
+            loogieId
         );
 
         // drop initial health
@@ -389,30 +406,25 @@ contract Game is Ownable {
         attritionDivider = newDivider;
     }
 
-    function move(MoveDirection direction) public {
-        (uint8 x, uint8 y) = getCoordinates(direction, tx.origin);
-
-        moveToCoord(x, y);
-    }
-
-    function moveToCoord(uint8 x, uint8 y) internal {
+    function move(uint8 x, uint8 y) public {
         require(gameOn, "NOT PLAYING");
 
-        Position memory position = yourPosition[tx.origin];
         require(health[tx.origin] > 0, "YOU ARE DEAD");
         require(
             health[tx.origin] > attritionDivider,
             "NOT ENOUGH HEALTH TO MOVE"
         );
         require(x < width && y < height, "OUT OF BOUNDS");
+
+        Position memory position = yourPosition[tx.origin];
         require(
             worldMatrix[position.x][position.y].cursed == false,
-            "CURSED, CANT MOVE"
+            "PLAYER ON CURSED POSITION, CANT MOVE"
         );
 
         require(
             block.timestamp - lastActionTime[tx.origin] >= actionInterval,
-            "TOO EARLY TIME"
+            "TOO EARLY TIME, WAIT A FEW SECS AND TRY AGAIN"
         );
 
         // require(gameTicker > lastActionTick[tx.origin], "TOO EARLY TICKER");
@@ -422,7 +434,7 @@ contract Game is Ownable {
         require(
             field.player == address(0) ||
                 (field.player != address(0) && health[field.player] > 0),
-            "A DEAD LOOGIE ON THIS POSITION"
+            "A DEAD LOOGIE ON THIS POSITION, CANT MOVE HERE"
         );
 
         // handle custom game logic like cursed fields
@@ -433,93 +445,84 @@ contract Game is Ownable {
             health[tx.origin] = 0;
         }
 
-        // reduce health when move
+        // reduce health when players move
+        // TODO: create feature flag for this
         health[tx.origin] -= attritionDivider;
         if (health[tx.origin] < 0) {
             health[tx.origin] = 0;
         }
 
+        // check if there is no players on the field
         if (field.player == address(0)) {
-            // just move to the new position
+            // move to the new position
             worldMatrix[position.x][position.y].player = address(0);
             worldMatrix[x][y].player = tx.origin;
             yourPosition[tx.origin] = Position(x, y);
 
+            // collect health if there is any
             if (field.healthAmountToCollect > 0) {
                 collectHealth(x, y);
             }
 
-            emit Move(tx.origin, x, y, health[tx.origin], gameTicker);
+            uint256 currentGameId = _gameIds.current();
+
+            emit Move(
+                currentGameId,
+                tx.origin,
+                x,
+                y,
+                health[tx.origin],
+                gameTicker
+            );
         } else {
-            // keep loogies on same field place and fight!
-            if (field.player != address(0)) {
-                //  fight the winner steals 50% of health
-                console.log("ANOTHER LOOGIE ON THIS POSITION, FIGHT!");
-
-                uint256 healthToSteal = health[field.player] / 2;
-                uint256 healthToLose = health[tx.origin] / 2;
-
-                // with the same health amount, the caller will win
-                if (health[tx.origin] >= health[field.player]) {
-                    // tx.origin wins
-                    health[tx.origin] += healthToSteal;
-                    health[field.player] = 0;
-                } else {
-                    // field.player wins
-                    health[field.player] += healthToLose;
-                    health[tx.origin] = 0;
-                }
-
-                // emmit the fight move event for the player on this field
-                emit Move(field.player, x, y, health[field.player], gameTicker);
-                emit Move(
-                    tx.origin,
-                    position.x,
-                    position.y,
-                    health[tx.origin],
-                    gameTicker
-                );
+            // keep loogies on the same field place and fight!
+            // the winner steals 50% of the loser health
+            // with the same health amount, the player caller tx.origin wins
+            if (health[tx.origin] >= health[field.player]) {
+                health[tx.origin] += health[field.player] / 2;
+                health[field.player] = 0;
+            } else {
+                // field.player wins
+                health[field.player] += health[tx.origin] / 2;
+                health[tx.origin] = 0;
             }
+
+            uint256 currentGameId = _gameIds.current();
+
+            // emmit the fight move event for the player on this field
+            emit Move(
+                currentGameId,
+                field.player,
+                x,
+                y,
+                health[field.player],
+                gameTicker
+            );
+
+            // emmit the fight move event for the player caller tx.origin
+            emit Move(
+                currentGameId,
+                tx.origin,
+                position.x,
+                position.y,
+                health[tx.origin],
+                gameTicker
+            );
         }
     }
 
-    // TODO: change to only owner function and transfer the ownership to the new owner
     function runManualTicker() public {
         require(gameOn, "NOT PLAYING");
         runGameTicker();
     }
 
-    function getCoordinates(MoveDirection direction, address txOrigin)
-        internal
-        view
-        returns (uint8 x, uint8 y)
-    {
-        //       x ----->
-        //      _______________
-        //  y  |____|____|_____
-        //     |____|____|_____
-        //     |____|____|_____
-        //     |____|____|_____
+    function needsManualTicker() public view returns (bool) {
+        require(gameOn, "NOT PLAYING");
+        console.log("block.number", block.number);
+        console.log("curseDuration", curseDuration);
+        console.log("block.number + curseDuration", block.number + curseDuration);
 
-        if (direction == MoveDirection.Up) {
-            x = yourPosition[txOrigin].x;
-            y = yourPosition[txOrigin].y - 1;
-        }
-
-        if (direction == MoveDirection.Down) {
-            x = yourPosition[txOrigin].x;
-            y = yourPosition[txOrigin].y + 1;
-        }
-
-        if (direction == MoveDirection.Left) {
-            x = yourPosition[txOrigin].x - 1;
-            y = yourPosition[txOrigin].y;
-        }
-
-        if (direction == MoveDirection.Right) {
-            x = yourPosition[txOrigin].x + 1;
-            y = yourPosition[txOrigin].y;
-        }
+        return block.number + curseDuration > tickerBlock;
     }
 
     function dropHealth(uint256 amount) internal {
@@ -550,7 +553,17 @@ contract Game is Ownable {
 
         runGameTicker();
 
-        emit NewHealthDrop(amount, x, y, position.x, position.y, gameTicker);
+        uint256 currentGameId = _gameIds.current();
+
+        emit NewHealthDrop(
+            currentGameId,
+            amount,
+            x,
+            y,
+            position.x,
+            position.y,
+            gameTicker
+        );
     }
 
     function runGameTicker() internal {
@@ -644,7 +657,10 @@ contract Game is Ownable {
             }
         }
 
+        uint256 currentGameId = _gameIds.current();
+
         emit NewCurseDrop(
+            currentGameId,
             worldMatrixRings[curseDropCount],
             curseDropCount,
             nextCurse,
