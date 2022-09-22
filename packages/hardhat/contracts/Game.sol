@@ -422,6 +422,12 @@ contract Game is Ownable {
             "PLAYER ON CURSED POSITION, CANT MOVE"
         );
 
+        // check if its not the same place as before
+        require(
+            position.x != x || position.y != y,
+            "SAME POSITION AS BEFORE"
+        );
+
         require(
             block.timestamp - lastActionTime[tx.origin] >= actionInterval,
             "TOO EARLY TIME, WAIT A FEW SECS AND TRY AGAIN"

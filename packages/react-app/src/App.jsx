@@ -1,12 +1,12 @@
-import { Button, Card, List, Menu, Tooltip } from "antd";
+import { Button, Card, List, Menu, Col, Row } from "antd";
 // import Blockies from "react-blockies";
 import "antd/dist/antd.css";
-import { useBalance, useContractLoader, useContractReader, useOnBlock, useUserProviderAndSigner } from "eth-hooks";
+import { useBalance, useContractLoader, useOnBlock, useUserProviderAndSigner } from "eth-hooks";
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, Route, Switch, useLocation } from "react-router-dom";
 import "./App.css";
-import { Account, Contract, Header, ThemeSwitch, NetworkDisplay, FaucetHint, NetworkSwitch } from "./components";
-import { NETWORKS, ALCHEMY_KEY } from "./constants";
+import { Account, Contract, Header, ThemeSwitch, Faucet, FaucetHint, NetworkSwitch } from "./components";
+import { NETWORKS } from "./constants";
 import externalContracts from "./contracts/external_contracts";
 // contracts
 import deployedContracts from "./contracts/hardhat_contracts.json";
@@ -60,6 +60,7 @@ const fetchLoogies = async (address, readContracts) => {
 
 const MAX_PLAYERS = 4;
 const INI_HEALTH = 100;
+const BOX_SIZE = 64;
 
 const { ethers } = require("ethers");
 /*
@@ -86,18 +87,13 @@ const initialNetwork = NETWORKS.localhost; // <------- select your target fronte
 
 // 😬 Sorry for all the console logging
 const DEBUG = true;
-const NETWORKCHECK = true;
+// const NETWORKCHECK = true;
 const USE_BURNER_WALLET = true; // toggle burner wallet feature
 const USE_NETWORK_SELECTOR = false;
 
 const web3Modal = Web3ModalSetup();
 
 // 🛰 providers
-const providers = [
-  "https://eth-mainnet.gateway.pokt.network/v1/lb/611156b4a585a20035148406",
-  `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_KEY}`,
-  "https://rpc.scaffoldeth.io:48544",
-];
 
 function App(props) {
   // specify all the chains your app is available on. Eg: ['localhost', 'mainnet', ...otherNetworks ]
@@ -117,10 +113,10 @@ function App(props) {
   const blockExplorer = targetNetwork.blockExplorer;
 
   // load all your providers
-  const localProvider = useStaticJsonRPC([
+  const provider = useStaticJsonRPC([
     process.env.REACT_APP_PROVIDER ? process.env.REACT_APP_PROVIDER : targetNetwork.rpcUrl,
   ]);
-  const mainnetProvider = useStaticJsonRPC(providers);
+  // const mainnetProvider = useStaticJsonRPC(providers);
 
   if (DEBUG) console.log(`Using ${selectedNetwork} network`);
 
@@ -140,7 +136,7 @@ function App(props) {
   /* 🔥 This hook will get the price of Gas from ⛽️ EtherGasStation */
   // const gasPrice = useGasPrice(targetNetwork, "fast");
   // Use your injected provider from 🦊 Metamask or if you don't have it then instantly generate a 🔥 burner wallet.
-  const userProviderAndSigner = useUserProviderAndSigner(injectedProvider, localProvider, USE_BURNER_WALLET);
+  const userProviderAndSigner = useUserProviderAndSigner(injectedProvider, provider, USE_BURNER_WALLET);
   const userSigner = userProviderAndSigner.signer;
 
   useEffect(() => {
@@ -154,7 +150,7 @@ function App(props) {
   }, [userSigner]);
 
   // You can warn the user if you would like them to be on a specific network
-  const localChainId = localProvider && localProvider._network && localProvider._network.chainId;
+  const localChainId = provider && provider._network && provider._network.chainId;
   const selectedChainId =
     userSigner && userSigner.provider && userSigner.provider._network && userSigner.provider._network.chainId;
 
@@ -164,17 +160,14 @@ function App(props) {
   const tx = Transactor(userSigner);
 
   // 🏗 scaffold-eth is full of handy hooks like this one to get your balance:
-  const yourLocalBalance = useBalance(localProvider, address);
-
-  // Just plug in different 🛰 providers to get your balance on different chains:
-  const yourMainnetBalance = useBalance(mainnetProvider, address);
+  const balance = useBalance(provider, address);
 
   // const contractConfig = useContractConfig();
 
   const contractConfig = { deployedContracts: deployedContracts || {}, externalContracts: externalContracts || {} };
 
   // Load in your local 📝 contract and read a value from it:
-  const readContracts = useContractLoader(localProvider, contractConfig);
+  const readContracts = useContractLoader(provider, contractConfig);
 
   // If you want to make 🔐 write transactions to your contracts, use the userSigner:
   const writeContracts = useContractLoader(userSigner, contractConfig, localChainId);
@@ -182,25 +175,15 @@ function App(props) {
   // EXTERNAL CONTRACT EXAMPLE:
   //
   // If you want to bring in the mainnet DAI contract it would look like:
-  const mainnetContracts = useContractLoader(mainnetProvider, contractConfig);
+  // const mainnetContracts = useContractLoader(mainnetProvider, contractConfig);
 
   // If you want to call a function on a new block
-  useOnBlock(mainnetProvider, block => {
+  // const [ gameBlock, setGameBlock ] = useState(10);
+  useOnBlock(provider, block => {
     console.log("🚀 ~ file: App.jsx ~ line 201 ~ useOnBlock ~ block", block);
 
-    // setGameBlock(localProvider._lastBlockNumber);
+    // setGameBlock(provider._lastBlockNumber);
   });
-
-  // Then read your DAI balance like:
-  const myMainnetDAIBalance = useContractReader(mainnetContracts, "DAI", "balanceOf", [
-    "0x34aA3F359A9D614239015126635CE7732c18fDF3",
-  ]);
-
-  // const { gameBlock, setGameBlock } = useState(10);
-
-  // keep track of a variable from the contract in the local React state:
-  const width = 7; // TODO: get from contract
-  const height = 7; // TODO: get from contract
 
   // add players inside the game query, like i do for worldMatrixes
   const WORLD_QUERY_GRAPHQL = `
@@ -258,6 +241,7 @@ function App(props) {
   const [yourLoogies, setYourLoogies] = useState();
 
   const [loadingLoogies, setLoadingLoogies] = useState(true);
+  const [waitingForMove, setWaitingForMove] = useState(true);
   const [page, setPage] = useState(1);
   const perPage = 1;
 
@@ -284,11 +268,6 @@ function App(props) {
     }
   }, [address, readContracts]);
 
-  // todo: move out of here
-  const s = 64;
-  const squareW = s;
-  const squareH = s;
-
   /*
   const addressFromENS = useResolveName(mainnetProvider, "austingriffith.eth");
   console.log("🏷 Resolved austingriffith.eth as:",addressFromENS)
@@ -298,40 +277,24 @@ function App(props) {
   // 🧫 DEBUG 👨🏻‍🔬
   //
   useEffect(() => {
-    if (
-      DEBUG &&
-      mainnetProvider &&
-      address &&
-      selectedChainId &&
-      yourLocalBalance &&
-      yourMainnetBalance &&
-      readContracts &&
-      writeContracts &&
-      mainnetContracts
-    ) {
+    if (DEBUG && address && selectedChainId && balance && readContracts && writeContracts) {
       // console.log("_____________________________________ 🏗 scaffold-eth _____________________________________");
       // console.log("🌎 mainnetProvider", mainnetProvider);
       // console.log("🏠 localChainId", localChainId);
       // console.log("👩‍💼 selected address:", address);
       // console.log("🕵🏻‍♂️ selectedChainId:", selectedChainId);
-      // console.log("💵 yourLocalBalance", yourLocalBalance ? ethers.utils.formatEther(yourLocalBalance) : "...");
-      // console.log("💵 yourMainnetBalance", yourMainnetBalance ? ethers.utils.formatEther(yourMainnetBalance) : "...");
+      // console.log("💵 balance", balance ? ethers.utils.formatEther(balance) : "...");
       // console.log("📝 readContracts", readContracts);
-      // console.log("🌍 DAI contract on mainnet:", mainnetContracts);
-      // console.log("💵 yourMainnetDAIBalance", myMainnetDAIBalance);
       // console.log("🔐 writeContracts", writeContracts);
     }
   }, [
-    mainnetProvider,
     address,
     selectedChainId,
-    yourLocalBalance,
-    yourMainnetBalance,
+    balance,
     readContracts,
     writeContracts,
-    mainnetContracts,
+    // mainnetContracts,
     localChainId,
-    myMainnetDAIBalance,
   ]);
 
   const loadWeb3Modal = useCallback(async () => {
@@ -366,7 +329,7 @@ function App(props) {
   const [currentGame, setCurrentGame] = useState([{}]);
 
   const [playersData, setPlayersData] = useState();
-  const [currentPlayer, setCurrentPlayer] = useState();
+  const [currentPlayerAddress, setCurrentPlayerAddress] = useState();
 
   // move to current player
   // const [playerCanMove, setPlayerCanMove] = useState(false);
@@ -387,20 +350,21 @@ function App(props) {
               const jsonManifestString = Buffer.from(tokenURI.substring(29), "base64");
               const jsonManifest = JSON.parse(jsonManifestString);
               const playerId = currentPosition.id.toLowerCase();
-              const currentPlayer = {
+              const currentPlayerAddress = {
                 id: playerId,
                 loogieId: currentPosition.loogieId,
                 position: { x: currentPosition.x, y: currentPosition.y },
                 lastActionTick: parseInt(currentPosition.lastActionTick),
                 lastActionBlock: parseInt(currentPosition.lastActionBlock),
                 lastActionTime: parseInt(currentPosition.lastActionTime),
-                health: parseInt(currentPosition.health) || INI_HEALTH,
-                cursed: currentPosition.cursed || false,
+                health: parseInt(currentPosition.health, 10),
+                // cursed: currentPosition.cursed || false, the player is not cursed, the world is
                 image: jsonManifest.image,
               };
-              newPlayersData[playerId] = currentPlayer;
+              newPlayersData[playerId] = currentPlayerAddress;
             }
             console.log("final player info", newPlayersData);
+
             setPlayersData(newPlayersData);
           } else {
             console.log("No players data");
@@ -414,7 +378,7 @@ function App(props) {
     } else {
       console.log("Contracts not defined yet.");
     }
-  }, [data, readContracts.Game]);
+  }, [data?.players, readContracts.Game]);
 
   useEffect(() => {
     // TODO: set initial state
@@ -422,10 +386,10 @@ function App(props) {
   }, [data?.games]);
 
   useEffect(() => {
-    if (playersData && address) {
-      setCurrentPlayer(playersData[address.toLowerCase()]);
+    if (playersData && address && playersData[address.toLowerCase()]) {
+      setCurrentPlayerAddress(address.toLowerCase());
     }
-  }, [playersData, address, data?.games]);
+  }, [playersData, address]);
 
   const [priceRightNow, setPriceRightNow] = useState(false);
   useEffect(() => {
@@ -443,6 +407,18 @@ function App(props) {
 
     setPriceRightNowAsync();
   }, [readContracts.Loogies]);
+
+  const [canMint, setCanMint] = useState(false);
+  useEffect(() => {
+    if (balance && priceRightNow) {
+      setCanMint(
+        parseFloat(ethers.utils.formatEther(balance)).toFixed(2) >
+          parseFloat(ethers.utils.formatEther(priceRightNow)).toFixed(2),
+      );
+    }
+  }, [balance, priceRightNow]);
+
+  const faucetAvailable = provider && provider.connection && targetNetwork.name.indexOf("local") !== -1;
 
   return (
     <div className="App">
@@ -467,7 +443,7 @@ function App(props) {
             <Account
               useBurner={USE_BURNER_WALLET}
               address={address}
-              localProvider={localProvider}
+              provider={provider}
               userSigner={userSigner}
               mainnetProvider={false}
               // mainnetProvider={mainnetProvider}
@@ -480,9 +456,9 @@ function App(props) {
           </div>
         </div>
       </Header>
-      {yourLocalBalance.lte(ethers.BigNumber.from("0")) && (
+      {balance.lte(ethers.BigNumber.from("0")) && (
         <FaucetHint
-          localProvider={localProvider}
+          provider={provider}
           targetNetwork={targetNetwork}
           address={address}
           value={ethers.utils.parseEther("1")}
@@ -510,7 +486,7 @@ function App(props) {
           ) : (
             <>
               {/* not current player and not playing, so its waiting for player to start a new game */}
-              {!currentPlayer && currentGame.gameOn === false ? (
+              {!currentPlayerAddress && currentGame.gameOn === false ? (
                 <div>
                   <div style={{ padding: 0, margin: "2rem" }}>
                     {loadingLoogies || (yourLoogies && yourLoogies.length > 0) ? (
@@ -621,7 +597,7 @@ function App(props) {
                                 size="large"
                                 type="primary"
                                 shape="round"
-                                // disabled={canMint}
+                                disabled={!canMint}
                                 onClick={async () => {
                                   try {
                                     setLoadingLoogies(true);
@@ -706,24 +682,13 @@ function App(props) {
                     }}
                   >
                     {/* Player related data */}
-                    {currentPlayer && currentPlayer.id ? (
+                    {currentPlayerAddress && playersData[currentPlayerAddress]?.id ? (
                       <>
-                        {/* {playersData && playersData[currentPlayer.id] ? (
-                          <img
-                            alt={currentPlayer.id}
-                            src={playersData[currentPlayer.id]?.image}
-                            style={{
-                              transform: "scale(3, 3)",
-                              width: "100",
-                              height: "100",
-                              top: -20,
-                              position: "absolute",
-                              left: 0,
-                              zIndex: 3,
-                            }}
-                          />
-                        ) : null} */}
+                        <h3>Current player: {trimAddress(playersData[currentPlayerAddress]?.id)}</h3>
 
+                        {!playersData[currentPlayerAddress]?.health > 0 && (
+                          <h2 style={{ color: "red" }}>You're dead</h2>
+                        )}
                         <ul
                           style={{
                             width: "100%",
@@ -731,37 +696,74 @@ function App(props) {
                             marginTop: "10px",
                           }}
                         >
-                          {/* <li>Playing: {currentGame && currentGame.gameOn ? "yes" : "no"} </li> */}
-                          <li>Player: {trimAddress(currentPlayer.id)} </li>
-                          <li>Loogie/Token ID: {currentPlayer.loogieId} </li>
-                          <li>Health: {currentPlayer.health} </li>
-                          <li>Cursed: {`${currentPlayer.cursed}`}</li>
-                          <li>Position: {`${currentPlayer.position.x},${currentPlayer.position.y}`}</li>
-                          <li>LastActionTick: {currentPlayer.lastActionTick} </li>
-                          <li>LastActionTime: {currentPlayer.lastActionTime} </li>
-                          <li>LastActionBlock: {currentPlayer.lastActionBlock}</li>
+                          <li>Loogie ID: {playersData[currentPlayerAddress]?.loogieId} </li>
+                          <li>Health: {playersData[currentPlayerAddress]?.health} </li>
+                          <li>
+                            Position:{" "}
+                            {`${playersData[currentPlayerAddress]?.position.x},${playersData[currentPlayerAddress]?.position.y}`}
+                          </li>
+                          <li>
+                            IsPositionCursed:{" "}
+                            {`${
+                              data.worldMatrixes.find(
+                                matrix => matrix.player && matrix.player.id.toLowerCase() === currentPlayerAddress,
+                              )?.cursed === true
+                            }`}
+                          </li>
+                          <li>LastActionTick: {playersData[currentPlayerAddress]?.lastActionTick} </li>
+                          <li>LastActionTime: {playersData[currentPlayerAddress]?.lastActionTime} </li>
+                          <li>LastActionBlock: {playersData[currentPlayerAddress]?.lastActionBlock}</li>
                         </ul>
                       </>
-                    ) : null}
+                    ) : (
+                      <>
+                        <h3>You're expecting game #{currentGame.id}</h3>
+                        {/* <p>You are waiting for the game to end.</p> */}
+                      </>
+                    )}
 
                     {/* Game related data */}
                     {currentGame && currentGame.gameOn ? (
                       <>
+                        <h3>Game ID: {currentGame && currentGame.id ? `#${currentGame.id}` : "no game"} </h3>
+                        {/* todo: move to game screen */}
+                        {currentGame.winner !== "0x0000000000000000000000000000000000000000" && (
+                          <h2>Las Winner: {`${currentGame.winner}`}</h2>
+                        )}
+
                         <ul
                           style={{
                             width: "100%",
                             textAlign: "left",
                           }}
                         >
-                          {/* todo: move to game screen */}
-                          {currentGame.winner !== "0x0000000000000000000000000000000000000000" ? (
-                            <li>Las Winner: {`${currentGame.winner}`}</li>
-                          ) : null}
-                          <li>Game ID: {currentGame && currentGame.id ? currentGame.id : "no game"} </li>
                           <li>Ticker: {currentGame.ticker}</li>
+                          <li>Current block: {currentGame.ticker}</li>
                           <li>NextCurse: {currentGame.nextCurse}</li>
                           <li>NextCurseIn: {currentGame.ticker - currentGame.nextCurse}</li>
+                          <li>needsManualTicker: TODO</li>
                         </ul>
+
+                        {/* TODO: handle manual ticker */}
+                        {/* setstate needsManualTicker */}
+                        {/* 
+                        {currentGame.id && currentGame.gameOn === false && (
+                          <Button
+                            size="large"
+                            shape="round"
+                            disabled={currentGame && currentGame.gameOn}
+                            style={{ marginBottom: "1em" }}
+                            onClick={async () => {
+                              setLoadingLoogies(true);
+                              tx(writeContracts.Game.runManualTicker(currentGame.id)).then(async () => {
+                                setLoadingLoogies(false);
+                              });
+                            }}
+                          >
+                            Leave game {currentGame.id}
+                          </Button>
+                        )} 
+                        */}
                       </>
                     ) : (
                       <>
@@ -801,112 +803,173 @@ function App(props) {
                     style={{
                       // color: "#111111",
                       // fontWeight: "bold",
-                      width: width * squareW,
-                      height: height * squareH,
+                      width: 7 * BOX_SIZE,
+                      height: 7 * BOX_SIZE,
                       position: "relative",
                       // top: "50%",
                       // left: "50%",
-                      // marginTop: (-height * squareH) / 2,
-                      // marginLeft: (-width * squareW) / 2,
+                      // marginTop: (-height * BOX_SIZE) / 2,
+                      // marginLeft: (-width * BOX_SIZE) / 2,
                       // backgroundColor: "#b3e2f4",
                       opacity: !currentGame || !currentGame.gameOn ? 0.5 : 1,
                       // zIndex: 1,
+                      // overflow: "visible",
                     }}
                   >
                     {/* world matrix */}
                     {data.worldMatrixes.map((world, index) => {
                       const { x, y, player, healthAmountToCollect, cursed } = world;
 
-                      const healthHere = parseInt(healthAmountToCollect);
+                      const canMoveHere =
+                        currentPlayerAddress &&
+                        playersData[currentPlayerAddress]?.health > 0 &&
+                        !(
+                          playersData[currentPlayerAddress]?.position?.x === x &&
+                          playersData[currentPlayerAddress]?.position?.y === y
+                        ) &&
+                        data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player === null;
+
+                      const canAttackHere =
+                        currentPlayerAddress &&
+                        playersData[currentPlayerAddress]?.health > 0 &&
+                        !(
+                          playersData[currentPlayerAddress]?.position?.x === x &&
+                          playersData[currentPlayerAddress]?.position?.y === y
+                        ) &&
+                        !(data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player === null) &&
+                        data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player?.health > 0;
+
+                      const hasHealthHere = parseInt(healthAmountToCollect, 10) > 0;
 
                       return (
                         <div
                           key={`${index}-${x}-${y}`}
                           style={{
-                            width: squareW,
-                            height: squareH,
+                            width: BOX_SIZE,
+                            height: BOX_SIZE,
                             // padding: 1,
                             position: "absolute",
-                            left: squareW * x,
-                            top: squareH * y,
-                            overflow: "visible",
-                            background: (x + y) % 2 ? "#BBBBBB" : "#EEEEEE",
-                            cursor: "pointer",
-                          }}
-                          className="world-square"
-                          // onClick={() => {
-                        >
-                          {player && (
-                            <>
-                              {/* <Tooltip title={`${trimAddress(player.id)}  `}> */}
-                              <span
-                                style={{
-                                  position: "absolute",
-                                  bottom: 0,
-                                  left: 0,
-                                  textAlign: "center",
-                                  width: "100%",
-                                  fontSize: "1.5rem",
-                                  lineHeight: 1,
-                                  color: "red",
-                                  fontWeight: "bold",
-                                  textShadow: "0 0 5px black",
-                                  zIndex: 4,
-                                }}
-                              >
-                                {player.health}
-                              </span>
-                              {/* </Tooltip> */}
-                              {/* TODO: save image url to the graph ?? */}
-                              {playersData && playersData[player.id]?.image ? (
-                                <img
-                                  alt={player.id}
-                                  src={playersData[player.id].image}
-                                  style={{
-                                    transform: "scale(3, 3)",
-                                    width: "100%",
-                                    height: "100%",
-                                    top: -20,
-                                    position: "absolute",
-                                    left: 0,
-                                    zIndex: 3,
-                                  }}
-                                />
-                              ) : null}
-                            </>
-                          )}
-                          <div
-                            style={{
-                              position: "absolute",
-                              height: "100%",
-                              width: "100%",
-                              left: 0,
-                              top: 0,
-                              zIndex: 2,
-                              background: cursed
-                                ? "red"
-                                : currentPlayer &&
-                                  player &&
-                                  currentPlayer.id?.toLowerCase() === player.id?.toLowerCase()
+                            left: BOX_SIZE * x,
+                            top: BOX_SIZE * y,
+                            // overflow: "visible",
+                            background:
+                              currentPlayerAddress &&
+                              player &&
+                              currentPlayerAddress === player.id &&
+                              playersData[currentPlayerAddress]?.health > 0
                                 ? "#00ff00"
-                                : "transparent",
-                              boxSizing: "content-box",
-                              overflow: "hidden",
+                                : cursed
+                                ? "red"
+                                : (x + y) % 2
+                                ? "#BBBBBB"
+                                : "#EEEEEE",
+                            // cursor: canMoveHere ? "pointer" : "not-allowed",
+                            // zIndex: 1,
+                          }}
+                          className="world-box"
+                        >
+                          {player && player.health > 0 && (
+                            <span
+                              style={{
+                                position: "absolute",
+                                bottom: 0,
+                                left: 0,
+                                textAlign: "center",
+                                width: "100%",
+                                fontSize: "1.5rem",
+                                lineHeight: 1,
+                                color: "red",
+                                fontWeight: "bold",
+                                textShadow: "0 0 5px black",
+                                zIndex: 4,
+                              }}
+                            >
+                              {player.health}
+                            </span>
+                          )}
+
+                          {/* TODO: save image url to the graph when user register ?? */}
+                          {player && player.id && playersData && playersData[player.id]?.image && (
+                            <img
+                              alt={player.id}
+                              src={playersData[player.id].image}
+                              style={{
+                                // transform: "scale(2, 2)",
+                                width: "100%",
+                                height: "100%",
+                                // top: -20,
+                                position: "relative",
+                                // left: 0,
+                                // zIndex: 3,
+                                filter: player.health <= 0 ? "grayscale(100%)" : "",
+                                opacity: player.health <= 0 ? 0.5 : 1,
+                                transform: player.health <= 0 ? "scale(2, 2) rotate(180deg)" : "scale(2, 2)",
+                              }}
+                            />
+                          )}
+
+                          {hasHealthHere > 0 && (
+                            <img
+                              alt="Health"
+                              src="Health_Full.svg"
+                              style={{
+                                // transform: "scale(3, 3)",
+                                width: "100%",
+                                height: "100%",
+                                // top: -20,
+                                position: "relative",
+                                // left: 0,
+                                // zIndex: 3,
+                              }}
+                            />
+                          )}
+
+                          <div
+                            // style={{
+                            //   background: canMoveHere
+                            //     ? "var(--antd-wave-shadow-color)"
+                            //     : canAttackHere
+                            //     ? "red"
+                            //     : "transparent",
+                            // }}
+                            className={`move ${canMoveHere ? "can-move" : ""} ${canAttackHere ? "can-attack" : ""} ${
+                              hasHealthHere ? "has-health" : ""
+                            }`}
+                            onClick={async () => {
+                              console.log("clicked", x, y);
+
+                              // const canMoveHere =
+                              //   currentPlayerAddress &&
+                              //   playersData[currentPlayerAddress]?.position?.x !== x &&
+                              //   playersData[currentPlayerAddress]?.position?.y !== y &&
+                              //   playersData[currentPlayerAddress]?.health > 0;
+
+                              console.log(
+                                "🚀 ~ file: App.jsx ~ line 835 ~ {data.worldMatrixes.map ~ canMoveHere",
+                                canMoveHere,
+                              );
+                              // const canAttackHere =
+                              //   currentPlayerAddress &&
+                              //   data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player;
+
+                              console.log(
+                                "🚀 ~ file: App.jsx ~ line 841 ~ {data.worldMatrixes.map ~ canAttackHere",
+                                canAttackHere,
+                              );
+
+                              if (!canMoveHere && !canAttackHere) return;
+
+                              try {
+                                // setWaitingForMove(true);
+                                await tx(writeContracts.Game.move(x, y));
+                                if (DEBUG) console.log("User move to ", x, y);
+                              } catch (error) {
+                                console.log("🚀 ~ file: App.jsx ~ line 621 ~ onClick={ ~ error", error);
+                                // setWaitingForMove(false);
+                              }
                             }}
                           >
-                            {healthHere ? (
-                              <Tooltip title={`${healthHere} health here`}>
-                                <img
-                                  alt="Health"
-                                  src="Health_Full.svg"
-                                  style={{
-                                    width: "70%",
-                                    height: "70%",
-                                  }}
-                                />
-                              </Tooltip>
-                            ) : null}
-                            <span style={{ marginLeft: 3 }}>{"" + x + "," + y}</span>
+                            {/* <span style={{ marginLeft: 3 }}>{"" + x + "," + y}</span> */}
                           </div>
                         </div>
                       );
@@ -923,7 +986,7 @@ function App(props) {
             name="Game"
             // price={price}
             signer={userSigner}
-            provider={localProvider}
+            provider={provider}
             address={address}
             blockExplorer={blockExplorer}
             contractConfig={contractConfig}
@@ -932,7 +995,7 @@ function App(props) {
             name="Loogies"
             // price={price}
             signer={userSigner}
-            provider={localProvider}
+            provider={provider}
             address={address}
             blockExplorer={blockExplorer}
             contractConfig={contractConfig}
@@ -944,12 +1007,24 @@ function App(props) {
             subgraphUri={props.subgraphUri}
             tx={tx}
             writeContracts={writeContracts}
-            mainnetProvider={mainnetProvider}
+            mainnetProvider={provider}
           />
         </Route>
       </Switch>
 
       <ThemeSwitch />
+
+      {/* 🗺 Extra UI like gas price, eth price, faucet, and support: */}
+      <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 20, padding: 10 }}>
+        <Row align="middle" gutter={[4, 4]}>
+          <Col span={24}>
+            {
+              /*  if the local provider has a signer, let's show the faucet:  */
+              faucetAvailable ? <Faucet localProvider={provider} price={1} /> : ""
+            }
+          </Col>
+        </Row>
+      </div>
     </div>
   );
 }

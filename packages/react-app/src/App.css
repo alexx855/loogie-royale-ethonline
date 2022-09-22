@@ -2,3 +2,45 @@
   text-align: center;
   padding-left: calc(100vw - 100%);
 }
+
+.move {
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  left: 0;
+  top: 0;
+  /* z-index: 22; */
+  box-sizing: content-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.move.can-attack {
+  background: red;
+}
+
+.move.can-move {
+  background: #1890ff;
+}
+.move.has-halth {
+  background: pink;
+}
+
+.move.can-attack,
+.move.can-move,
+.move.has-halth {
+  cursor: pointer;
+}
+
+.world-box{
+  overflow: hidden;
+}
+
+.world-box:hover .move.can-attack,
+.world-box:hover .move.can-move,
+.world-box:hover .move.has-health {
+  opacity: 0.5;
+}
