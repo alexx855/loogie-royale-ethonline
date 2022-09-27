@@ -59,28 +59,10 @@ const fetchLoogies = async (address, readContracts) => {
 };
 
 const MAX_PLAYERS = 4;
-const INI_HEALTH = 100;
+// const INI_HEALTH = 100;
 const BOX_SIZE = 64;
 
 const { ethers } = require("ethers");
-/*
-    Welcome to 🏗 scaffold-eth !
-
-    Code:
-    https://github.com/scaffold-eth/scaffold-eth
-
-    Support:
-    https://t.me/joinchat/KByvmRe5wkR-8F_zz6AjpA
-    or DM @austingriffith on twitter or telegram
-
-    You should get your own Alchemy.com & Infura.io ID and put it in `constants.js`
-    (this is your connection to the main Ethereum network for ENS etc.)
-
-
-    🌏 EXTERNAL CONTRACTS:
-    You can also bring in contract artifacts in `constants.js`
-    (and then use the `useExternalContractLoader()` hook!)
-*/
 
 /// 📡 What chain are your contracts deployed to?
 const initialNetwork = NETWORKS.localhost; // <------- select your target frontend network (localhost, rinkeby, xdai, mainnet)
@@ -130,10 +112,6 @@ function App(props) {
     }, 1);
   };
 
-  /* 💵 This hook will get the price of ETH from 🦄 Uniswap: */
-  // const price = useExchangeEthPrice(targetNetwork, mainnetProvider);
-
-  /* 🔥 This hook will get the price of Gas from ⛽️ EtherGasStation */
   // const gasPrice = useGasPrice(targetNetwork, "fast");
   // Use your injected provider from 🦊 Metamask or if you don't have it then instantly generate a 🔥 burner wallet.
   const userProviderAndSigner = useUserProviderAndSigner(injectedProvider, provider, USE_BURNER_WALLET);
@@ -178,11 +156,11 @@ function App(props) {
   // const mainnetContracts = useContractLoader(mainnetProvider, contractConfig);
 
   // If you want to call a function on a new block
-  // const [ gameBlock, setGameBlock ] = useState(10);
+  const [gameBlock, setGameBlock] = useState(0);
   useOnBlock(provider, block => {
     console.log("🚀 ~ file: App.jsx ~ line 201 ~ useOnBlock ~ block", block);
 
-    // setGameBlock(provider._lastBlockNumber);
+    setGameBlock(provider._lastBlockNumber);
   });
 
   // add players inside the game query, like i do for worldMatrixes
@@ -195,10 +173,10 @@ function App(props) {
       width,
       restart,
       winner,
-      nextCurse,
+      curseNextGameTicker,
       gameOn,
       createdAt,
-      curseCount
+      curseDropCount
     },
     players {
       id,
@@ -241,7 +219,7 @@ function App(props) {
   const [yourLoogies, setYourLoogies] = useState();
 
   const [loadingLoogies, setLoadingLoogies] = useState(true);
-  const [waitingForMove, setWaitingForMove] = useState(true);
+  // const [waitingForMove, setWaitingForMove] = useState(true);
   const [page, setPage] = useState(1);
   const perPage = 1;
 
@@ -326,7 +304,7 @@ function App(props) {
   }, [loadWeb3Modal]);
 
   // TODO: set initial state
-  const [currentGame, setCurrentGame] = useState([{}]);
+  const [currentGame, setCurrentGame] = useState(false);
 
   const [playersData, setPlayersData] = useState();
   const [currentPlayerAddress, setCurrentPlayerAddress] = useState();
@@ -382,7 +360,7 @@ function App(props) {
 
   useEffect(() => {
     // TODO: set initial state
-    setCurrentGame(data?.games[0] || {});
+    setCurrentGame(data?.games[data?.games.length - 1] || {});
   }, [data?.games]);
 
   useEffect(() => {
@@ -418,7 +396,24 @@ function App(props) {
     }
   }, [balance, priceRightNow]);
 
+  const [needsManualTicker, setNeedsManualTicker] = useState(false);
+  useEffect(() => {
+    const setNeedsManualTickerAsync = async () => {
+      if (readContracts.Game) {
+        try {
+          const needsManualTicker = await readContracts.Game.needsManualTicker();
+          setNeedsManualTicker(needsManualTicker);
+        } catch (error) {
+          console.log(error);
+        }
+      }
+    };
+
+    setNeedsManualTickerAsync();
+  }, [readContracts.Game]);
+
   const faucetAvailable = provider && provider.connection && targetNetwork.name.indexOf("local") !== -1;
+  console.log("🚀 ~ file: App.jsx ~ line 422 ~ App ~ faucetAvailable", faucetAvailable);
 
   return (
     <div className="App">
@@ -443,10 +438,10 @@ function App(props) {
             <Account
               useBurner={USE_BURNER_WALLET}
               address={address}
-              provider={provider}
+              minimized={false}
+              localProvider={provider}
               userSigner={userSigner}
-              mainnetProvider={false}
-              // mainnetProvider={mainnetProvider}
+              mainnetProvider={provider}
               price={1}
               web3Modal={web3Modal}
               loadWeb3Modal={loadWeb3Modal}
@@ -456,9 +451,9 @@ function App(props) {
           </div>
         </div>
       </Header>
-      {balance.lte(ethers.BigNumber.from("0")) && (
+      {balance && balance.lte(ethers.BigNumber.from("0")) && (
         <FaucetHint
-          provider={provider}
+          localProvider={provider}
           targetNetwork={targetNetwork}
           address={address}
           value={ethers.utils.parseEther("1")}
@@ -485,445 +480,514 @@ function App(props) {
             <p>Error loading graph</p>
           ) : (
             <>
-              {/* not current player and not playing, so its waiting for player to start a new game */}
-              {!currentPlayerAddress && currentGame.gameOn === false ? (
-                <div>
-                  <div style={{ padding: 0, margin: "2rem" }}>
-                    {loadingLoogies || (yourLoogies && yourLoogies.length > 0) ? (
-                      <div id="your-loogies" style={{ paddingTop: 20 }}>
-                        <div>
-                          <List
-                            grid={{
-                              gutter: 1,
-                              xs: 1,
-                              sm: 1,
-                              md: 1,
-                              lg: 1,
-                              xl: 1,
-                              xxl: 1,
-                            }}
-                            pagination={{
-                              total: yourLoogiesBalance,
-                              defaultPageSize: perPage,
-                              defaultCurrent: page,
-                              onChange: currentPage => {
-                                setPage(currentPage);
-                              },
-                              showTotal: (total, range) => `${range[0]}-${range[1]} of ${yourLoogiesBalance} items`,
-                            }}
-                            loading={loadingLoogies}
-                            dataSource={yourLoogies}
-                            renderItem={item => {
-                              const id = item.id.toNumber();
-
-                              return (
-                                <List.Item key={id + "_" + item.uri + "_" + item.owner}>
-                                  <Card
-                                    style={
-                                      {
-                                        // backgroundColor: "#b3e2f4",
-                                        // border: "1px solid #0071bb",
-                                        // borderRadius: 10,
-                                        // marginRight: 10,
-                                      }
-                                    }
-                                    headStyle={{ paddingRight: 12, paddingLeft: 12 }}
-                                    title={
-                                      <div>
-                                        <span style={{ fontSize: 16, marginRight: 8 }}>{item.name}</span>
-                                        <Button
-                                          size="large"
-                                          shape="round"
-                                          disabled={currentGame && currentGame.gameOn}
-                                          onClick={async () => {
-                                            try {
-                                              setLoadingLoogies(true);
-                                              await tx(writeContracts.Game.register(id));
-                                              if (DEBUG) console.log("Updating active player...");
-                                            } catch (error) {
-                                              console.log("🚀 ~ file: App.jsx ~ line 621 ~ onClick={ ~ error", error);
-                                              setLoadingLoogies(false);
-                                            }
-                                          }}
-                                        >
-                                          Register
-                                        </Button>
-                                      </div>
-                                    }
-                                  >
-                                    <img alt={item.id} src={item.image} width="240" />
-
-                                    {/* TODO: show games played, wins and loses */}
-                                    <div style={{ padding: 4 }}>
-                                      <div>
-                                        <span style={{ fontSize: 16, marginRight: 8 }}>
-                                          {item.description || "TODO"}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </Card>
-                                </List.Item>
-                              );
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ minHeight: 200, fontSize: 30 }}>
-                        <Card
-                          style={
-                            {
-                              // backgroundColor: "#b3e2f4",
-                              // border: "1px solid #0071bb",
-                              // borderRadius: 10,
-                              // marginRight: 10,
-                            }
-                          }
-                          title={
-                            <div>
-                              <span style={{ fontSize: 18, marginRight: 8, fontWeight: "bold" }}>
-                                You need to own a Loogie to play:
-                              </span>
-                            </div>
-                          }
-                        >
-                          <div>
-                            <p>
-                              You can mint a <strong>Loogie</strong> here
-                            </p>
-
-                            <p>
-                              <Button
-                                size="large"
-                                type="primary"
-                                shape="round"
-                                disabled={!canMint}
-                                onClick={async () => {
-                                  try {
-                                    setLoadingLoogies(true);
-
-                                    await tx(writeContracts.Loogies.mintItem({ value: priceRightNow }));
-                                    const { loogies, loogiesBalance } = await fetchLoogies(address, readContracts);
-
-                                    if (loogies && loogies.length > 0) {
-                                      setYourLoogies(loogies.reverse());
-                                    }
-
-                                    if (loogiesBalance) {
-                                      setYourLoogiesBalance(loogiesBalance);
-                                    }
-                                  } catch (error) {
-                                    console.log("🚀 ~ file: App.jsx ~ line 673 ~ onClick={ ~ error", error);
-                                  }
-
-                                  setLoadingLoogies(false);
-                                }}
-                              >
-                                Mint for Ξ {ethers.utils.formatEther(priceRightNow)}
-                              </Button>
-                            </p>
-
-                            {/* TODO: link to marketplace to buy existing loogies */}
-                            {/* https://qx.app/collection/0x006eB613cc586198003a119485594ECbbDf41230 */}
-
-                            {/* TODO: test RAMP on optmism */}
-                            <div>
-                              <Button
-                                size="large"
-                                type="secondary"
-                                shape="round"
-                                onClick={() => {
-                                  new RampInstantSDK({
-                                    hostAppName: "scaffold-eth",
-                                    hostLogoUrl: "https://scaffoldeth.io/scaffold-eth.png",
-                                    swapAmount: priceRightNow, // 0.001 ETH in wei  ?
-                                    swapAsset: "ETH", // review, it should be OETH
-                                    userAddress: address,
-                                  })
-                                    .on("*", event => console.log(event))
-                                    .show();
-                                }}
-                              >
-                                Deposit using ramp
-                              </Button>
-                            </div>
-                          </div>
-                        </Card>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                // we have a current player, or the game is already on
+              <div
+                style={{
+                  position: "relative",
+                  // background: "rgba(0, 0, 0, 0.5)",
+                  width: "100vw",
+                  height: "auto",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  maxWidth: "800px",
+                  overflow: "hidden",
+                  // overflow: "visible",
+                  margin: "1em auto",
+                  padding: "2em",
+                }}
+              >
+                {/* game UI and data */}
                 <div
                   style={{
-                    position: "relative",
-                    // background: "rgba(0, 0, 0, 0.5)",
-                    width: "100vw",
-                    height: "auto",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    maxWidth: "800px",
-                    overflow: "hidden",
-                    // overflow: "visible",
-                    margin: "1em auto",
-                    padding: "2em",
+                    width: "270px",
                   }}
                 >
-                  {/* game UI and data */}
-                  <div
-                    style={{
-                      // position: "absolute",
-                      // backgroundColor: "#b3e2f4",
-                      // top: "0",
-                      // left: "0",
-                      width: "270px",
-                      // zIndex: 11,
-                    }}
-                  >
-                    {/* Player related data */}
-                    {currentPlayerAddress && playersData[currentPlayerAddress]?.id ? (
-                      <>
-                        <h3>Current player: {trimAddress(playersData[currentPlayerAddress]?.id)}</h3>
+                  {/* Game On */}
+                  {currentGame && currentGame.gameOn === true ? (
+                    <>
+                      <Button
+                        size="large"
+                        shape="round"
+                        style={{ marginBottom: "1em" }}
+                        disabled={balance && balance.lte(ethers.BigNumber.from("0"))}
+                        // disabled={!needsManualTicker}
+                        onClick={async () => {
+                          try {
+                            setNeedsManualTicker(false);
+                            await tx(writeContracts.Game.runTicker());
+                            if (DEBUG) console.log("Updating game state onchain...");
+                          } catch (error) {
+                            console.log(error);
+                            setNeedsManualTicker(true);
+                          }
+                        }}
+                      >
+                        Update
+                      </Button>
 
-                        {!playersData[currentPlayerAddress]?.health > 0 && (
-                          <h2 style={{ color: "red" }}>You're dead</h2>
-                        )}
-                        <ul
-                          style={{
-                            width: "100%",
-                            textAlign: "left",
-                            marginTop: "10px",
-                          }}
-                        >
-                          <li>Loogie ID: {playersData[currentPlayerAddress]?.loogieId} </li>
-                          <li>Health: {playersData[currentPlayerAddress]?.health} </li>
-                          <li>
-                            Position:{" "}
-                            {`${playersData[currentPlayerAddress]?.position.x},${playersData[currentPlayerAddress]?.position.y}`}
-                          </li>
-                          <li>
-                            IsPositionCursed:{" "}
-                            {`${
-                              data.worldMatrixes.find(
-                                matrix => matrix.player && matrix.player.id.toLowerCase() === currentPlayerAddress,
-                              )?.cursed === true
-                            }`}
-                          </li>
-                          <li>LastActionTick: {playersData[currentPlayerAddress]?.lastActionTick} </li>
-                          <li>LastActionTime: {playersData[currentPlayerAddress]?.lastActionTime} </li>
-                          <li>LastActionBlock: {playersData[currentPlayerAddress]?.lastActionBlock}</li>
-                        </ul>
-                      </>
-                    ) : (
-                      <>
-                        <h3>You're expecting game #{currentGame.id}</h3>
-                        {/* <p>You are waiting for the game to end.</p> */}
-                      </>
-                    )}
+                      {/* Game Over */}
+                      {currentGame.winner !== "0x0000000000000000000000000000000000000000" ? (
+                        <>
+                          {currentGame.winner === currentPlayerAddress ? (
+                            <h2 style={{ color: "green" }}>You won!</h2>
+                          ) : (
+                            <h2 style={{ color: "red" }}>You lost!</h2>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {/* Current active Player */}
+                          {currentPlayerAddress && playersData[currentPlayerAddress] ? (
+                            <>
+                              <h3>Connected as: {trimAddress(playersData[currentPlayerAddress]?.id)}</h3>
+                              <p>
+                                Playing Game #{currentGame.id} with loogie {playersData[currentPlayerAddress]?.loogieId}{" "}
+                              </p>
 
-                    {/* Game related data */}
-                    {currentGame && currentGame.gameOn ? (
-                      <>
-                        <h3>Game ID: {currentGame && currentGame.id ? `#${currentGame.id}` : "no game"} </h3>
-                        {/* todo: move to game screen */}
-                        {currentGame.winner !== "0x0000000000000000000000000000000000000000" && (
-                          <h2>Las Winner: {`${currentGame.winner}`}</h2>
-                        )}
+                              {/* <ul
+                                style={{
+                                  width: "100%",
+                                  textAlign: "left",
+                                  marginTop: "10px",
+                                }}
+                              >
+                                <li>Health: {playersData[currentPlayerAddress]?.health} </li>
+                                <li>
+                                  Position:{" "}
+                                  {`${playersData[currentPlayerAddress]?.position.x},${playersData[currentPlayerAddress]?.position.y}`}
+                                </li>
+                                <li>
+                                  IsPositionCursed:{" "}
+                                  {`${
+                                    data.worldMatrixes.find(
+                                      matrix =>
+                                        matrix.player && matrix.player.id.toLowerCase() === currentPlayerAddress,
+                                    )?.cursed === true
+                                  }`}
+                                </li>
+                                <li>LastActionTick: {playersData[currentPlayerAddress]?.lastActionTick} </li>
+                                <li>LastActionTime: {playersData[currentPlayerAddress]?.lastActionTime} </li>
+                                <li>LastActionBlock: {playersData[currentPlayerAddress]?.lastActionBlock}</li>
+                              </ul> */}
+                            </>
+                          ) : (
+                            <>
+                              {/*  Game On, But Not Current active Player */}
+                              <h3>You're expecting game #{currentGame.id}</h3>
+                              {/* <p>You are waiting for the game to end.</p> */}
+                            </>
+                          )}
 
-                        <ul
-                          style={{
-                            width: "100%",
-                            textAlign: "left",
-                          }}
-                        >
-                          <li>Ticker: {currentGame.ticker}</li>
-                          <li>Current block: {currentGame.ticker}</li>
-                          <li>NextCurse: {currentGame.nextCurse}</li>
-                          <li>NextCurseIn: {currentGame.ticker - currentGame.nextCurse}</li>
-                          <li>needsManualTicker: TODO</li>
-                        </ul>
+                          {currentGame && (
+                            <>
+                              <ul
+                                style={{
+                                  width: "100%",
+                                  textAlign: "left",
+                                }}
+                              >
+                                {/* <li>gameOn: {`${currentGame.gameOn}`}</li> */}
+                                <li>Ticker: {currentGame.ticker}</li>
+                                {/* <li>Current block: {gameBlock}</li> */}
+                                <li>Current ticker: {currentGame.ticker}</li>
+                                <li>NextCurse: {currentGame.curseNextGameTicker}</li>
+                                <li>curseDropCount: {currentGame.curseDropCount}</li>
+                                <li>
+                                  NextCurseIn:{" "}
+                                  {currentGame.ticker >= currentGame.curseNextGameTicker
+                                    ? "next update"
+                                    : `in ${currentGame.curseNextGameTicker - currentGame.ticker} ticks`}
+                                </li>
+                                <li>needsManualTicker: {`${needsManualTicker}`}</li>
+                              </ul>
+                            </>
+                          )}
+                          {playersData && (
+                            <>
+                              <h3>Players: </h3>
 
-                        {/* TODO: handle manual ticker */}
-                        {/* setstate needsManualTicker */}
-                        {/* 
-                        {currentGame.id && currentGame.gameOn === false && (
-                          <Button
-                            size="large"
-                            shape="round"
-                            disabled={currentGame && currentGame.gameOn}
-                            style={{ marginBottom: "1em" }}
-                            onClick={async () => {
-                              setLoadingLoogies(true);
-                              tx(writeContracts.Game.runManualTicker(currentGame.id)).then(async () => {
-                                setLoadingLoogies(false);
-                              });
-                            }}
-                          >
-                            Leave game {currentGame.id}
-                          </Button>
-                        )} 
-                        */}
-                      </>
-                    ) : (
-                      <>
-                        {/* There is a game, but it has not started yet, so it should be waiting for other players */}
-                        <h3 style={{ fontSize: "1em", textAlign: "left", paddingLeft: "0.5em", paddingRight: "0.5em" }}>
-                          Waiting for {MAX_PLAYERS - data.worldMatrixes.filter(world => world.player).length} more
-                          players{" "}
-                        </h3>
-
-                        {/* TODO: handle unregister */}
-                        {/* 
-                        {currentGame.id && currentGame.gameOn === false && (
-                          <Button
-                            size="large"
-                            shape="round"
-                            disabled={currentGame && currentGame.gameOn}
-                            style={{ marginBottom: "1em" }}
-                            onClick={async () => {
-                              setLoadingLoogies(true);
-                              tx(writeContracts.Game.unregister(currentGame.id)).then(async () => {
-                                setLoadingLoogies(false);
-                              });
-                            }}
-                          >
-                            Leave game {currentGame.id}
-                          </Button>
-                        )} 
-                        */}
-                      </>
-                    )}
-
-                    {/* end ui data */}
-                  </div>
-
-                  {/* world matrix container */}
-                  <div
-                    style={{
-                      // color: "#111111",
-                      // fontWeight: "bold",
-                      width: 7 * BOX_SIZE,
-                      height: 7 * BOX_SIZE,
-                      position: "relative",
-                      // top: "50%",
-                      // left: "50%",
-                      // marginTop: (-height * BOX_SIZE) / 2,
-                      // marginLeft: (-width * BOX_SIZE) / 2,
-                      // backgroundColor: "#b3e2f4",
-                      opacity: !currentGame || !currentGame.gameOn ? 0.5 : 1,
-                      // zIndex: 1,
-                      // overflow: "visible",
-                    }}
-                  >
-                    {/* world matrix */}
-                    {data.worldMatrixes.map((world, index) => {
-                      const { x, y, player, healthAmountToCollect, cursed } = world;
-
-                      const canMoveHere =
-                        currentPlayerAddress &&
-                        playersData[currentPlayerAddress]?.health > 0 &&
-                        !(
-                          playersData[currentPlayerAddress]?.position?.x === x &&
-                          playersData[currentPlayerAddress]?.position?.y === y
-                        ) &&
-                        data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player === null;
-
-                      const canAttackHere =
-                        currentPlayerAddress &&
-                        playersData[currentPlayerAddress]?.health > 0 &&
-                        !(
-                          playersData[currentPlayerAddress]?.position?.x === x &&
-                          playersData[currentPlayerAddress]?.position?.y === y
-                        ) &&
-                        !(data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player === null) &&
-                        data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player?.health > 0;
-
-                      const hasHealthHere = parseInt(healthAmountToCollect, 10) > 0;
-
-                      return (
-                        <div
-                          key={`${index}-${x}-${y}`}
-                          style={{
-                            width: BOX_SIZE,
-                            height: BOX_SIZE,
-                            // padding: 1,
-                            position: "absolute",
-                            left: BOX_SIZE * x,
-                            top: BOX_SIZE * y,
-                            // overflow: "visible",
-                            background:
-                              currentPlayerAddress &&
-                              player &&
-                              currentPlayerAddress === player.id &&
-                              playersData[currentPlayerAddress]?.health > 0
-                                ? "#00ff00"
-                                : cursed
-                                ? "red"
-                                : (x + y) % 2
-                                ? "#BBBBBB"
-                                : "#EEEEEE",
-                            // cursor: canMoveHere ? "pointer" : "not-allowed",
-                            // zIndex: 1,
-                          }}
-                          className="world-box"
-                        >
-                          {player && player.health > 0 && (
-                            <span
+                              <ul
+                                style={{
+                                  width: "100%",
+                                  textAlign: "left",
+                                }}
+                              >
+                                {Object.keys(playersData).map(player => (
+                                  <li key={player}>
+                                    <strong>
+                                      {trimAddress(player)}: {playersData[player]?.loogieId}
+                                    </strong>
+                                    <br />
+                                    {/* <strong>health:</strong> {playersData[player]?.health} <br /> */}
+                                    {/* <strong>position:</strong>{" "}
+                                    {`${playersData[player]?.position.x},${playersData[player]?.position.y}`} <br /> */}
+                                    <strong>lastActionTick:</strong> {`${playersData[player]?.lastActionTick}`} <br />
+                                    <strong>lastActionTime:</strong> {`${playersData[player]?.lastActionTime}`} <br />
+                                    <strong>lastActionBlock:</strong> {`${playersData[player]?.lastActionBlock}`}
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* Game Off, waiting for other players */}
+                      {/* <h2>lala</h2> */}
+                      {!currentGame ||
+                        (currentGame && currentGame.gameOn === false && (
+                          <>
+                            <h3
                               style={{
-                                position: "absolute",
-                                bottom: 0,
-                                left: 0,
-                                textAlign: "center",
-                                width: "100%",
-                                fontSize: "1.5rem",
-                                lineHeight: 1,
-                                color: "red",
-                                fontWeight: "bold",
-                                textShadow: "0 0 5px black",
-                                zIndex: 4,
+                                fontSize: "1em",
+                                // textAlign: "left",
+                                paddingLeft: "0.5em",
+                                paddingRight: "0.5em",
                               }}
                             >
-                              {player.health}
-                            </span>
-                          )}
+                              Waiting for {MAX_PLAYERS - data.worldMatrixes.filter(world => world.player).length} more
+                              players{" "}
+                            </h3>
+                            {priceRightNow && address && readContracts && (
+                              <div style={{ margin: "1em 0" }}>
+                                <Button
+                                  size="large"
+                                  type="primary"
+                                  shape="round"
+                                  disabled={!canMint}
+                                  onClick={async () => {
+                                    try {
+                                      setLoadingLoogies(true);
 
-                          {/* TODO: save image url to the graph when user register ?? */}
-                          {player && player.id && playersData && playersData[player.id]?.image && (
-                            <img
-                              alt={player.id}
-                              src={playersData[player.id].image}
-                              style={{
-                                // transform: "scale(2, 2)",
-                                width: "100%",
-                                height: "100%",
-                                // top: -20,
-                                position: "relative",
-                                // left: 0,
-                                // zIndex: 3,
-                                filter: player.health <= 0 ? "grayscale(100%)" : "",
-                                opacity: player.health <= 0 ? 0.5 : 1,
-                                transform: player.health <= 0 ? "scale(2, 2) rotate(180deg)" : "scale(2, 2)",
-                              }}
-                            />
-                          )}
+                                      await tx(writeContracts.Loogies.mintItem({ value: priceRightNow }));
+                                      const { loogies, loogiesBalance } = await fetchLoogies(address, readContracts);
 
-                          {hasHealthHere > 0 && (
-                            <img
-                              alt="Health"
-                              src="Health_Full.svg"
-                              style={{
-                                // transform: "scale(3, 3)",
-                                width: "100%",
-                                height: "100%",
-                                // top: -20,
-                                position: "relative",
-                                // left: 0,
-                                // zIndex: 3,
-                              }}
-                            />
-                          )}
+                                      if (loogies && loogies.length > 0) {
+                                        setYourLoogies(loogies.reverse());
+                                      }
 
+                                      if (loogiesBalance) {
+                                        setYourLoogiesBalance(loogiesBalance);
+                                      }
+                                    } catch (error) {
+                                      console.log("🚀 ~ file: App.jsx ~ line 673 ~ onClick={ ~ error", error);
+                                    }
+
+                                    setLoadingLoogies(false);
+                                  }}
+                                >
+                                  Mint loogie for Ξ {ethers.utils.formatEther(priceRightNow)}
+                                </Button>
+                              </div>
+                            )}
+
+                            {!canMint && priceRightNow && balance && (
+                              <div>
+                                <Button
+                                  size="large"
+                                  type="secondary"
+                                  shape="round"
+                                  onClick={() => {
+                                    new RampInstantSDK({
+                                      hostAppName: "scaffold-eth",
+                                      hostLogoUrl: "https://scaffoldeth.io/scaffold-eth.png",
+                                      swapAmount: priceRightNow, // 0.001 ETH in wei  ?
+                                      swapAsset: "ETH", // review, it should be OETH
+                                      userAddress: address,
+                                    })
+                                      .on("*", event => console.log(event))
+                                      .show();
+                                  }}
+                                >
+                                  Deposit using ramp
+                                </Button>
+
+                                {DEBUG && (
+                                  <p>
+                                    You need Ξ {ethers.utils.formatEther(priceRightNow)} to mint a Loogie and you have Ξ
+                                    {ethers.utils.formatEther(balance)}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            <div id="your-loogies">
+                              {yourLoogies && yourLoogies.length === 0 && (
+                                <div>
+                                  <h4>You need a loogie to register</h4>
+                                </div>
+                              )}
+
+                              <div>
+                                <List
+                                  grid={{
+                                    gutter: 1,
+                                    xs: 1,
+                                    sm: 1,
+                                    md: 1,
+                                    lg: 1,
+                                    xl: 1,
+                                    xxl: 1,
+                                  }}
+                                  pagination={{
+                                    total: yourLoogiesBalance,
+                                    defaultPageSize: perPage,
+                                    defaultCurrent: page,
+                                    simple: true,
+                                    onChange: currentPage => {
+                                      setPage(currentPage);
+                                    },
+                                  }}
+                                  loading={loadingLoogies}
+                                  dataSource={yourLoogies}
+                                  renderItem={item => {
+                                    const id = item.id.toNumber();
+
+                                    return (
+                                      <List.Item key={id + "_" + item.uri + "_" + item.owner}>
+                                        <Card
+                                          style={
+                                            {
+                                              // backgroundColor: "#b3e2f4",
+                                              // border: "1px solid #0071bb",
+                                              // borderRadius: 10,
+                                              // marginRight: 10,
+                                            }
+                                          }
+                                          headStyle={{ paddingRight: 12, paddingLeft: 12 }}
+                                          title={
+                                            <div>
+                                              <span style={{ fontSize: 16, marginRight: 8 }}>{item.name}</span>
+
+                                              {/* TODO: handle unregister */}
+                                              {playersData &&
+                                              playersData[currentPlayerAddress]?.loogieId.toString() ===
+                                                id.toString() ? (
+                                                <Button
+                                                  size="large"
+                                                  shape="round"
+                                                  disabled={true}
+                                                  style={{ marginBottom: "1em" }}
+                                                  // onClick={async () => {
+                                                  //   setLoadingLoogies(true);
+                                                  //   tx(writeContracts.Game.unregister(currentGame.id)).then(async () => {
+                                                  //     setLoadingLoogies(false);
+                                                  //   });
+                                                  // }}
+                                                >
+                                                  Leave game
+                                                </Button>
+                                              ) : (
+                                                <Button
+                                                  size="large"
+                                                  shape="round"
+                                                  disabled={
+                                                    (currentGame && currentGame.gameOn) ||
+                                                    (playersData &&
+                                                      typeof playersData[currentPlayerAddress] !== "undefined")
+                                                  }
+                                                  onClick={async () => {
+                                                    console.log();
+                                                    try {
+                                                      setLoadingLoogies(true);
+                                                      await tx(writeContracts.Game.register(id));
+                                                      if (DEBUG) console.log("Updating active player...");
+                                                    } catch (error) {
+                                                      console.log(
+                                                        "🚀 ~ file: App.jsx ~ line 621 ~ onClick={ ~ error",
+                                                        error,
+                                                      );
+                                                      setLoadingLoogies(false);
+                                                    }
+                                                  }}
+                                                >
+                                                  Register
+                                                </Button>
+                                              )}
+                                            </div>
+                                          }
+                                        >
+                                          <img
+                                            style={{ maxWidth: "100%" }}
+                                            alt={item.id}
+                                            src={item.image}
+                                            width="auto"
+                                          />
+
+                                          {/* TODO: show games played, wins and loses */}
+                                          <div style={{ padding: 4 }}>
+                                            <div>
+                                              <span style={{ fontSize: 16, marginRight: 8 }}>
+                                                {item.description || "TODO"}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </Card>
+                                      </List.Item>
+                                    );
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </>
+                        ))}
+                      {/* Not current game here */}
+                    </>
+                  )}
+                </div>
+                {/* end ui data */}
+
+                {/* world matrix container */}
+                <div
+                  style={{
+                    // color: "#111111",
+                    // fontWeight: "bold",
+                    width: 7 * BOX_SIZE,
+                    height: 7 * BOX_SIZE,
+                    position: "relative",
+                    // top: "50%",
+                    // left: "50%",
+                    // marginTop: (-height * BOX_SIZE) / 2,
+                    // marginLeft: (-width * BOX_SIZE) / 2,
+                    // backgroundColor: "#b3e2f4",
+                    opacity: !currentGame || !currentGame.gameOn ? 0.5 : 1,
+                    // zIndex: 1,
+                    // overflow: "visible",
+                  }}
+                >
+                  {/* world matrix */}
+                  {data.worldMatrixes.map((world, index) => {
+                    const { x, y, player, healthAmountToCollect, cursed } = world;
+
+                    const canMoveHere =
+                      currentPlayerAddress &&
+                      // data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.cursed === false &&
+                      playersData[currentPlayerAddress]?.health > 0 &&
+                      !(
+                        playersData[currentPlayerAddress]?.position?.x === x &&
+                        playersData[currentPlayerAddress]?.position?.y === y
+                      ) &&
+                      data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player === null;
+
+                    const canAttackHere =
+                      currentPlayerAddress &&
+                      playersData[currentPlayerAddress]?.health > 0 &&
+                      !(
+                        playersData[currentPlayerAddress]?.position?.x === x &&
+                        playersData[currentPlayerAddress]?.position?.y === y
+                      ) &&
+                      !(data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player === null) &&
+                      data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.player?.health > 0;
+
+                    const hasHealthHere = parseInt(healthAmountToCollect, 10) > 0;
+
+                    return (
+                      <div
+                        key={`${index}-${x}-${y}`}
+                        style={{
+                          width: BOX_SIZE,
+                          height: BOX_SIZE,
+                          // padding: 1,
+                          position: "absolute",
+                          left: BOX_SIZE * x,
+                          top: BOX_SIZE * y,
+                          // overflow: "visible",
+                          background:
+                            currentPlayerAddress &&
+                            player &&
+                            currentPlayerAddress === player.id &&
+                            playersData[currentPlayerAddress]?.health > 0
+                              ? "#00ff00"
+                              : cursed
+                              ? "red"
+                              : (x + y) % 2
+                              ? "#BBBBBB"
+                              : "#EEEEEE",
+                          // cursor: canMoveHere ? "pointer" : "not-allowed",
+                          // zIndex: 1,
+                        }}
+                        className="world-box"
+                      >
+                        {player && player.health > 0 && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              bottom: 0,
+                              left: 0,
+                              paddingBottom: 2,
+                              textAlign: "center",
+                              width: "100%",
+                              fontSize: "1.1rem",
+                              lineHeight: 1,
+                              color: "red",
+                              fontWeight: "bold",
+                              textShadow: "0 0 5px black",
+                              zIndex: 1,
+                            }}
+                          >
+                            {player.health}
+                          </span>
+                        )}
+
+                        {healthAmountToCollect && healthAmountToCollect > 0 && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              bottom: 0,
+                              left: 0,
+                              paddingBottom: 2,
+                              textAlign: "center",
+                              width: "100%",
+                              fontSize: "1.1rem",
+                              lineHeight: 1,
+                              color: "white",
+                              fontWeight: "bold",
+                              textShadow: "0 0 5px black",
+                              zIndex: 1,
+                            }}
+                          >
+                            {healthAmountToCollect}
+                          </span>
+                        )}
+
+                        {/* TODO: save image url to the graph when user register ?? */}
+                        {player && player.id && playersData && playersData[player.id]?.image && (
+                          <img
+                            alt={player.id}
+                            src={playersData[player.id].image}
+                            style={{
+                              // transform: "scale(2, 2)",
+                              width: "100%",
+                              height: "100%",
+                              // top: -20,
+                              position: "relative",
+                              // left: 0,
+                              // zIndex: 3,
+                              filter: player.health <= 0 ? "grayscale(100%)" : "",
+                              opacity: player.health <= 0 ? 0.5 : 1,
+                              transform: player.health <= 0 ? "rotate(180deg)" : "",
+                            }}
+                          />
+                        )}
+
+                        {hasHealthHere > 0 && (
+                          <img
+                            alt="Health"
+                            src="Health_Full.svg"
+                            style={{
+                              // transform: "scale(3, 3)",
+                              width: "100%",
+                              height: "100%",
+                              // top: -20,
+                              position: "relative",
+                              // left: 0,
+                              // zIndex: 3,
+                            }}
+                          />
+                        )}
+
+                        {currentGame.gameOn && (
                           <div
                             // style={{
                             //   background: canMoveHere
@@ -971,12 +1035,12 @@ function App(props) {
                           >
                             {/* <span style={{ marginLeft: 3 }}>{"" + x + "," + y}</span> */}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </>
           )}
         </Route>
@@ -1014,17 +1078,11 @@ function App(props) {
 
       <ThemeSwitch />
 
-      {/* 🗺 Extra UI like gas price, eth price, faucet, and support: */}
-      <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 20, padding: 10 }}>
-        <Row align="middle" gutter={[4, 4]}>
-          <Col span={24}>
-            {
-              /*  if the local provider has a signer, let's show the faucet:  */
-              faucetAvailable ? <Faucet localProvider={provider} price={1} /> : ""
-            }
-          </Col>
-        </Row>
-      </div>
+      {faucetAvailable && (
+        <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 20, padding: 10 }}>
+          <Faucet localProvider={provider} price={1} />
+        </div>
+      )}
     </div>
   );
 }

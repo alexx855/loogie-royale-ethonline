@@ -1,32 +1,57 @@
-import { BigInt } from "@graphprotocol/graph-ts";
+import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
   Restart,
   Register,
   Move,
   NewCurseDrop,
   NewHealthDrop,
+  Ticker,
 } from "../generated/Game/Game";
 import { WorldMatrix, Player, Game } from "../generated/schema";
 
 export function handleRestart(event: Restart): void {
   let gameString = event.params.gameId.toString();
+  let winner = event.params.winner.toString();
+
+  if (winner !== "0x0000000000000000000000000000000000000000") {
+    // Update winner on prev game
+    let prevGameString = event.params.gameId
+      .minus(BigInt.fromI32(1))
+      .toString();
+    // let prevGame = Game.load(prevGameString);
+    // if (prevGame) {
+    //   prevGame.winner = Address.fromString(winner);
+    //   prevGame.save();
+    //   // set no winner on new game
+    //   winner = "0x0000000000000000000000000000000000000000";
+    // }
+  }
 
   let game = Game.load(gameString);
   if (game === null) {
     game = new Game(gameString);
   }
 
+  game.gameId = event.params.gameId;
   game.height = event.params.height;
   game.width = event.params.width;
   game.createdAt = event.block.timestamp;
   game.restart = event.block.number;
-  game.winner = event.params.winner;
-  game.nextCurse = BigInt.fromI32(10);
+  game.winner = Address.fromString(
+    "0x0000000000000000000000000000000000000000"
+  );
+  // game.winner = Bytes.fromHexString(winner);
+  game.curseNextGameTicker = BigInt.fromI32(10);
   game.gameOn = false;
-  game.curseCount = 0;
+  game.curseDropCount = BigInt.fromI32(0);
+  game.curseInterval = BigInt.fromI32(0);
   game.ticker = BigInt.fromI32(0);
+  // predict next curse drop
+  // game.curseNextGameTicker = BigInt.fromI32(0).plus( event.params.curseInterval );
+  // game.curseInterval = event.params.curseInterval;
   game.save();
 
+  // reset world matrix
   for (let i = 0; i < event.params.width; i++) {
     for (let j = 0; j < event.params.height; j++) {
       const fieldId = i.toString() + "-" + j.toString();
@@ -42,7 +67,6 @@ export function handleRestart(event: Restart): void {
       field.save();
     }
   }
-
   game.save();
 }
 
@@ -56,16 +80,18 @@ export function handleRegister(event: Register): void {
   // add initial player data
   player.loogieId = event.params.loogieId;
   player.health = BigInt.fromI32(100);
+  // player.health = event.params.initialHealth;
   player.x = event.params.x;
   player.y = event.params.y;
   player.createdAt = event.block.timestamp;
   player.transactionHash = event.transaction.hash.toHex();
-  player.lastActionTick = BigInt.fromI32(0);
+  // set to 0 bc game did not start yet
+  player.lastActionTick = BigInt.fromI32(0); 
   player.lastActionBlock = BigInt.fromI32(0);
   player.lastActionTime = BigInt.fromI32(0);
   player.save();
 
-  // update player on world matrix
+  // update reference to player on world matrix
   const fieldId = event.params.x.toString() + "-" + event.params.y.toString();
   let field = WorldMatrix.load(fieldId);
   if (field !== null) {
@@ -73,90 +99,49 @@ export function handleRegister(event: Register): void {
     field.save();
   }
 
-  // check if gameOn, when last player is registered and update game
-  if (event.params.gameOn) {
-    let gameString = event.params.gameId.toString();
-    const game = Game.load(gameString);
-    if (game !== null) {
-      game.gameOn = true;
-      game.save();
-    }
-  }
 }
 
 export function handleMove(event: Move): void {
-  const gameString = event.params.gameId.toString();
-  const game = Game.load(gameString);
+  let playerString = event.params.txOrigin.toHexString();
+  let player = Player.load(playerString);
 
-  if (game !== null) {
-    game.ticker = event.params.gameTicker;
-    game.save();
+  if (player !== null) {
+    const oldX = player.x;
+    const oldY = player.y;
 
-    let playerString = event.params.txOrigin.toHexString();
-    let player = Player.load(playerString);
+    // update player data
+    player.health = event.params.health;
+    player.x = event.params.x;
+    player.y = event.params.y;
+    player.lastActionTick = event.params.gameTicker;
+    player.lastActionTime = event.block.timestamp;
+    player.lastActionBlock = event.block.number;
+    player.save();
 
-    if (player !== null) {
-      const oldX = player.x;
-      const oldY = player.y;
+    const oldFieldId = oldX.toString() + "-" + oldY.toString();
+    let oldField = WorldMatrix.load(oldFieldId);
 
-      // update player data
-      player.health = event.params.health;
-      player.x = event.params.x;
-      player.y = event.params.y;
-      player.lastActionTick = event.params.gameTicker;
-      player.lastActionTime = event.block.timestamp;
-      player.lastActionBlock = event.block.number;
-      player.save();
+    const fieldId = event.params.x.toString() + "-" + event.params.y.toString();
+    let field = WorldMatrix.load(fieldId);
 
-      const oldFieldId = oldX.toString() + "-" + oldY.toString();
-      let oldField = WorldMatrix.load(oldFieldId);
+    // check if player is not on the same field
+    if (event.params.x !== oldX || event.params.y !== oldY) {
+      // remove player from old field
+      if (oldField !== null) {
+        oldField.player = null;
+        oldField.save();
+      }
 
-      const fieldId =
-        event.params.x.toString() + "-" + event.params.y.toString();
-      let field = WorldMatrix.load(fieldId);
-
-      // check if player is not on the same field
-      if (event.params.x !== oldX || event.params.y !== oldY) {
-        // remove player from old field
-        if (oldField !== null) {
-          oldField.player = null;
-          oldField.save();
-        }
-
-        // move player to new field
-        if (field !== null) {
-          field.player = playerString;
-          field.healthAmountToCollect = BigInt.fromI32(0);
-          field.save();
-        }
-      } else {
-        // user did not move, so user fought
+      // move player to new field
+      if (field !== null) {
+        field.player = playerString;
+        field.save();
       }
     }
   }
 }
 
-export function handleHealthNewDrop(event: NewHealthDrop): void {
-  // update ticker
-  const gameTicker = event.params.gameTicker;
-  const gameString = event.params.gameId.toString();
-  const game = Game.load(gameString);
-  if (game !== null) {
-    game.ticker = gameTicker;
-    game.save();
-  }
-
-  // remove old drop, if there is one
-  const oldFieldId =
-    event.params.oldX.toString() + "-" + event.params.oldY.toString();
-  let oldField = WorldMatrix.load(oldFieldId);
-  if (
-    oldField !== null &&
-    oldField.healthAmountToCollect !== BigInt.fromI32(0)
-  ) {
-    oldField.healthAmountToCollect = BigInt.fromI32(0);
-    oldField.save();
-  }
+export function handleNewHealthDrop(event: NewHealthDrop): void {
 
   const fieldId =
     event.params.dropX.toString() + "-" + event.params.dropY.toString();
@@ -172,19 +157,18 @@ export function handleHealthNewDrop(event: NewHealthDrop): void {
 }
 
 export function handleNewCurseDrop(event: NewCurseDrop): void {
-  // makes the external borders/rigs for curseDropCount on the world cursed
+  // makes cursed the external borders/rigs/fields for curseDropCount index on the world 
   const cursePositions = event.params.cursePositions;
 
   const curseDropCount = event.params.curseDropCount;
-  const nextCurse = event.params.nextCurse;
-  const gameTicker = event.params.gameTicker;
+  const curseNextGameTicker = event.params.curseNextGameTicker;
+
   const gameString = event.params.gameId.toString();
 
   const game = Game.load(gameString);
   if (game !== null) {
-    game.ticker = gameTicker;
-    game.nextCurse = nextCurse;
-    game.curseCount = curseDropCount;
+    game.curseNextGameTicker = curseNextGameTicker;
+    game.curseDropCount = curseDropCount;
     game.save();
   }
 
@@ -208,4 +192,18 @@ export function handleNewCurseDrop(event: NewCurseDrop): void {
       }
     }
   }
+}
+
+export function handleTicker(event: Ticker): void {
+  const gameTicker = event.params.gameTicker;
+  const gameOn = event.params.gameOn;
+  const gameString = event.params.gameId.toString();
+  const game = Game.load(gameString);
+  if (game !== null) {
+    // game.updatedAt = event.block.timestamp;
+    game.ticker = gameTicker;
+    game.gameOn = gameOn;
+    game.save();
+  }
+
 }

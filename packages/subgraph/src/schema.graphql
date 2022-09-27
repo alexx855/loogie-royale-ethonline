@@ -1,14 +1,16 @@
 type Game @entity {
   id: ID!
+  gameId: BigInt!
   ticker: BigInt!
   height: Int!
   width: Int!
   restart: BigInt!
-  nextCurse: BigInt!
+  curseNextGameTicker: BigInt!
   gameOn: Boolean!
   createdAt: BigInt!
   winner: Bytes!
-  curseCount: Int!
+  curseDropCount: BigInt!
+  curseInterval: BigInt!
 }
 
 type WorldMatrix @entity {

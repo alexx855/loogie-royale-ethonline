@@ -7,7 +7,7 @@ dataSources:
     network: localhost
     source:
       abi: Game
-      address: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+      address: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.5
@@ -22,13 +22,15 @@ dataSources:
       eventHandlers:
         - event: Move(uint256,indexed address,uint8,uint8,uint256,uint256)
           handler: handleMove
-        - event: NewCurseDrop(uint256,(uint8,uint8)[],uint8,uint256,uint256)
+        - event: NewCurseDrop(uint256,(uint8,uint8)[],uint256,uint256)
           handler: handleNewCurseDrop
-        - event: NewHealthDrop(uint256,uint256,uint8,uint8,uint8,uint8,uint256)
-          handler: handleHealthNewDrop
+        - event: NewHealthDrop(uint256,uint256,uint8,uint8)
+          handler: handleNewHealthDrop
         - event: Register(indexed address,indexed
-            address,uint256,bool,uint8,uint8,uint256)
+            address,uint256,uint8,uint8,uint256,uint256)
           handler: handleRegister
-        - event: Restart(uint256,uint8,uint8,address)
+        - event: Restart(uint256,uint8,uint8,uint256,address)
           handler: handleRestart
+        - event: Ticker(uint256,indexed address,bool,uint256)
+          handler: handleTicker
       file: ./src/mapping.ts

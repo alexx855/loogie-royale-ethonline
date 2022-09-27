@@ -10,10 +10,6 @@ import "base64-sol/base64.sol";
 import "./HexStrings.sol";
 import "./ToColor.sol";
 
-//learn more: https://docs.openzeppelin.com/contracts/3.x/erc721
-
-// GET LISTED ON OPENSEA: https://testnets.opensea.io/get-listed/step-two
-
 contract Loogies is ERC721Enumerable, Ownable {
     using Strings for uint256;
     using HexStrings for uint160;
@@ -21,16 +17,12 @@ contract Loogies is ERC721Enumerable, Ownable {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
-    // TODO: allow admin to change recipient
-    // all funds go to buidlguidl.eth
+    // TODO: allow owner to change recipient
     address payable public constant recipient =
-        payable(0xa81a6a910FeD20374361B35C451a4a44F86CeD46);
-    // TODO: allow admin to change the price
-    uint256 public price = 0.001 ether;
+        payable(0x94ca0F69A3E9dDffe090E59Bac5186ddE97B5820);
 
-    // uint256 public constant limit = 3728;
-    // uint256 public constant curve = 1002; // price increase 0,4% with each purchase
-    // the 1154th  loogies cost 0.01 ETH, the 2306th cost 0.1ETH, the 3459th cost 1 ETH and the last ones cost 1.7 ETH
+    // TODO: allow admin to change the price, to match the min of ramp, it should be enough to cover gas for a game
+    uint256 public price = 0.0012 ether;
 
     mapping(uint256 => bytes3) public color;
     mapping(uint256 => uint256) public chubbiness;
@@ -41,10 +33,7 @@ contract Loogies is ERC721Enumerable, Ownable {
     }
 
     function mintItem() public payable returns (uint256) {
-        // require(_tokenIds.current() < limit, "DONE MINTING");
         require(msg.value >= price, "NOT ENOUGH");
-
-        // price = (price * curve) / 1000;
 
         _tokenIds.increment();
 
@@ -139,12 +128,35 @@ contract Loogies is ERC721Enumerable, Ownable {
             abi.encodePacked(
                 '<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">',
                 renderTokenById(id),
+                renderCrown(),
                 "</svg>"
             )
         );
 
         return svg;
     }
+
+    function renderCrown() public pure returns (string memory) {
+        return
+            string(
+                abi.encodePacked(
+                    '<g class="crown" transform="translate(140,0) scale(5,5)">',
+                    '<path fill="#f9c605"  d="M3 16l-3-10 7.104 4 4.896-8 4.896 8 7.104-4-3 10h-18zm0 2v4h18v-4h-18z"/>',
+                    "</g>"
+                )
+            );
+    }
+
+    // function renderSwordById() public view returns (string memory) {
+    //     return
+    //         string(
+    //             abi.encodePacked(
+    //                 '<g class="sword" transform="translate(-550,-270) scale(2.8,2.8) rotate(-10)">',
+    //                 '<path fill="#f9c605" stroke="#000" stroke-width="1" d="M254.5 224.83h-1.4v11.7h2c1.7 0 3.2 1.1 3.7 2.7h-4v33.5c0 .2-.1.3-.2.4l-4.5 4.8c-.2.2-.5.2-.7 0l-4.5-4.8c-.1-.1-.1-.2-.1-.4v-33.5h-3.6c.5-1.5 2-2.7 3.7-2.6h2v-11.7h-1.4c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5h9c.8 0 1.5.7 1.5 1.5 0 .7-.7 1.4-1.5 1.4z" />',
+    //                 "</g>"
+    //             )
+    //         );
+    // }
 
     // Visibility is `public` to enable it being called by other contracts for composition.
     function renderTokenById(uint256 id) public view returns (string memory) {

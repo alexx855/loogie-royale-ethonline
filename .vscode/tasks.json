@@ -75,7 +75,7 @@
                 "runOn": "folderOpen"
             },
             "group": "none",
-            "dependsOn": ["yarn: chain", "yarn: run-graph-node"],
+            "dependsOn": ["yarn: chain"],
         }
         
     ]

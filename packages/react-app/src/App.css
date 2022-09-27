@@ -9,7 +9,7 @@
   width: 100%;
   left: 0;
   top: 0;
-  /* z-index: 22; */
+  z-index: 22;
   box-sizing: content-box;
   display: flex;
   justify-content: center;
@@ -25,13 +25,13 @@
 .move.can-move {
   background: #1890ff;
 }
-.move.has-halth {
+.move.can-move.has-health {
   background: pink;
 }
 
 .move.can-attack,
 .move.can-move,
-.move.has-halth {
+.move.has-health {
   cursor: pointer;
 }
 

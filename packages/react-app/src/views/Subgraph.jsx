@@ -20,14 +20,14 @@ function Subgraph(props) {
   {
     games {
       id,
+      winner,
       ticker,
       height,
       width,
       restart,
-      nextCurse,
       gameOn,
       createdAt,
-      curseCount
+      curseDropCount
     },
     players {
         id,
@@ -153,8 +153,8 @@ function Subgraph(props) {
     },
     {
       title: "next curse block number",
-      dataIndex: "nextCurse",
-      key: "nextCurse",
+      dataIndex: "curseNextGameTicker",
+      key: "curseNextGameTicker",
     },
     // {
     //   title: "gameOn",

@@ -43,9 +43,10 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
   console.log(`Game contract deployed to ${gameContract.address}`);
 
   const GameContract = await ethers.getContract("Game", deployer);
+  console.log(`Game contract deployed to ${GameContract.address}`);
 
   // await GameContract.start();
-  await GameContract.setDropOnCollect(true);
+  // await GameContract.setDropOnCollect(true);
 
   // if (chainId !== localChainId) {
   //   await GameContract.transferOwnership(
