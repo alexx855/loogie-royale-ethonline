@@ -20,14 +20,18 @@ function Subgraph(props) {
   {
     games {
       id,
+      gameOn,
       winner,
-      ticker,
       height,
       width,
-      restart,
-      gameOn,
+      curseDropCount,
+      curseNextGameTicker,
+      curseDropCount,
+      curseInterval,
+      ticker,
+      tickerBlock,
       createdAt,
-      curseDropCount
+      updatedAt
     },
     players {
         id,
@@ -35,9 +39,10 @@ function Subgraph(props) {
         y,
         loogieId,
         health,
-        lastActionTick,
-        lastActionBlock,
-        lastActionTime
+        ticker,
+        tickerBlock,
+        createdAt,
+        updatedAt
     },
     worldMatrixes {
       id,
@@ -51,9 +56,10 @@ function Subgraph(props) {
         y,
         loogieId,
         health,
-        lastActionTick,
-        lastActionBlock,
-        lastActionTime
+        ticker,
+        tickerBlock,
+        createdAt,
+        updatedAt
       }
     }
   }

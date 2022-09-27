@@ -11,44 +11,38 @@ import { WorldMatrix, Player, Game } from "../generated/schema";
 
 export function handleRestart(event: Restart): void {
   let gameString = event.params.gameId.toString();
-  let winner = event.params.winner.toString();
+  let winner = event.params.winner;
 
-  if (winner !== "0x0000000000000000000000000000000000000000") {
-    // Update winner on prev game
-    let prevGameString = event.params.gameId
-      .minus(BigInt.fromI32(1))
-      .toString();
-    // let prevGame = Game.load(prevGameString);
-    // if (prevGame) {
-    //   prevGame.winner = Address.fromString(winner);
-    //   prevGame.save();
-    //   // set no winner on new game
-    //   winner = "0x0000000000000000000000000000000000000000";
-    // }
-  }
+  let prevGameString = event.params.prevGameId.toString()
+
+  let prevGame = Game.load(prevGameString);
+
+  if (prevGame !== null) {
+      prevGame.winner = winner;
+      prevGame.save();
+    }
 
   let game = Game.load(gameString);
   if (game === null) {
     game = new Game(gameString);
   }
 
-  game.gameId = event.params.gameId;
+  game.ticker = BigInt.fromI32(0);
+  game.tickerBlock = event.block.number;
   game.height = event.params.height;
   game.width = event.params.width;
   game.createdAt = event.block.timestamp;
-  game.restart = event.block.number;
-  game.winner = Address.fromString(
-    "0x0000000000000000000000000000000000000000"
-  );
-  // game.winner = Bytes.fromHexString(winner);
-  game.curseNextGameTicker = BigInt.fromI32(10);
+  game.updatedAt = event.block.timestamp;
+
+  // set to 0x0 
+  game.winner = Bytes.fromHexString("0x0000000000000000000000000000000000000000");
   game.gameOn = false;
   game.curseDropCount = BigInt.fromI32(0);
-  game.curseInterval = BigInt.fromI32(0);
-  game.ticker = BigInt.fromI32(0);
   // predict next curse drop
-  // game.curseNextGameTicker = BigInt.fromI32(0).plus( event.params.curseInterval );
-  // game.curseInterval = event.params.curseInterval;
+  game.curseNextGameTicker = BigInt.fromI32(0).plus( event.params.curseInterval );
+  game.curseInterval = event.params.curseInterval;
+  // game.curseNextGameTicker = BigInt.fromI32(10);
+  // game.curseInterval = BigInt.fromI32(0);
   game.save();
 
   // reset world matrix
@@ -67,7 +61,7 @@ export function handleRestart(event: Restart): void {
       field.save();
     }
   }
-  game.save();
+
 }
 
 export function handleRegister(event: Register): void {
@@ -78,17 +72,16 @@ export function handleRegister(event: Register): void {
     player = new Player(playerString);
   }
   // add initial player data
-  player.loogieId = event.params.loogieId;
-  player.health = BigInt.fromI32(100);
-  // player.health = event.params.initialHealth;
   player.x = event.params.x;
   player.y = event.params.y;
-  player.createdAt = event.block.timestamp;
+  player.loogieId = event.params.loogieId;
+  // player.health = BigInt.fromI32(100);
+  player.health = event.params.initialHealth;
   player.transactionHash = event.transaction.hash.toHex();
-  // set to 0 bc game did not start yet
-  player.lastActionTick = BigInt.fromI32(0); 
-  player.lastActionBlock = BigInt.fromI32(0);
-  player.lastActionTime = BigInt.fromI32(0);
+  player.ticker = BigInt.fromI32(0); 
+  player.tickerBlock = event.block.number;
+  player.createdAt = event.block.timestamp;
+  player.updatedAt = event.block.timestamp;
   player.save();
 
   // update reference to player on world matrix
@@ -98,7 +91,6 @@ export function handleRegister(event: Register): void {
     field.player = playerString;
     field.save();
   }
-
 }
 
 export function handleMove(event: Move): void {
@@ -113,9 +105,9 @@ export function handleMove(event: Move): void {
     player.health = event.params.health;
     player.x = event.params.x;
     player.y = event.params.y;
-    player.lastActionTick = event.params.gameTicker;
-    player.lastActionTime = event.block.timestamp;
-    player.lastActionBlock = event.block.number;
+    player.ticker = event.params.gameTicker;
+    player.tickerBlock = event.block.number;
+    player.updatedAt = event.block.timestamp;
     player.save();
 
     const oldFieldId = oldX.toString() + "-" + oldY.toString();
@@ -200,8 +192,9 @@ export function handleTicker(event: Ticker): void {
   const gameString = event.params.gameId.toString();
   const game = Game.load(gameString);
   if (game !== null) {
-    // game.updatedAt = event.block.timestamp;
     game.ticker = gameTicker;
+    game.tickerBlock = event.block.number;
+    game.updatedAt = event.block.timestamp;
     game.gameOn = gameOn;
     game.save();
   }

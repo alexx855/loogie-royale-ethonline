@@ -7,7 +7,7 @@ dataSources:
     network: localhost
     source:
       abi: Game
-      address: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
+      address: "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.5
@@ -31,6 +31,6 @@ dataSources:
           handler: handleRegister
         - event: Restart(uint256,uint8,uint8,uint256,address)
           handler: handleRestart
-        - event: Ticker(uint256,indexed address,bool,uint256)
+        - event: Ticker(uint256,uint256,indexed address,bool,uint256)
           handler: handleTicker
       file: ./src/mapping.ts

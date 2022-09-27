@@ -30,6 +30,7 @@ contract Game is Ownable {
 
     event Restart(
         uint256 gameId,
+        uint256 prevGameId,
         uint8 width,
         uint8 height,
         uint256 curseInterval,
@@ -50,7 +51,12 @@ contract Game is Ownable {
     //     address indexed msgSender,
     //     uint256 loogieId
     // );
-    event Ticker(uint256 gameId, address indexed txOrigin, bool gameOn, uint256 gameTicker);
+    event Ticker(
+        uint256 gameId,
+        address indexed txOrigin,
+        bool gameOn,
+        uint256 gameTicker
+    );
     event Move(
         uint256 gameId,
         address indexed txOrigin,
@@ -113,13 +119,14 @@ contract Game is Ownable {
     mapping(address => uint256) public health;
     mapping(address => address) public yourContract;
     mapping(uint256 => address) public gameRewards;
-    mapping(address => uint256) public lastActionTick;
-    mapping(address => uint256) public lastActionTime;
-    mapping(address => uint256) public lastActionBlock;
+    mapping(address => uint256) public playersTicker;
+    mapping(address => uint256) public playersTikerTimestamp;
+    mapping(address => uint256) public playersTickerBlock;
     mapping(address => uint256) public loogies;
     address[] public players;
     uint256 public restartBlockNumber;
     uint256 public tickerBlock;
+    uint256 public tickerTimestamp;
 
     constructor(address _loogiesContractAddress) {
         loogiesContract = LoogiesContract(_loogiesContractAddress);
@@ -214,13 +221,14 @@ contract Game is Ownable {
     // TODO: make internal
     function restart(address winner) public {
         require(
-            gameOn == false || (gameOn == true && gameRewards[gameId] != address(0)),
+            gameOn == false ||
+                (gameOn == true && gameRewards[gameId] != address(0)),
             "Game is still running"
         );
         // enabled players queue
         gameOn = false;
         // current game id
-        // uint256 prevGameId = _gameIds.current();
+        uint256 prevGameId = _gameIds.current();
 
         // set new game id
         _gameIds.increment();
@@ -235,8 +243,8 @@ contract Game is Ownable {
         _curseDropCount.reset();
         curseDropCount = _curseDropCount.current();
 
-        // save restart block number
-        restartBlockNumber = block.number;
+        // it should be address(0); by default
+        gameRewards[gameId] = address(0);
 
         // reset world matrix
         for (uint256 i = 0; i < players.length; i++) {
@@ -249,15 +257,15 @@ contract Game is Ownable {
             );
             yourPosition[players[i]] = Position(0, 0);
             health[players[i]] = 0;
-            lastActionTick[players[i]] = 0;
-            lastActionTime[players[i]] = 0;
-            lastActionBlock[players[i]] = 0;
+            playersTicker[players[i]] = 0;
+            playersTikerTimestamp[players[i]] = 0;
+            playersTickerBlock[players[i]] = 0;
             loogies[players[i]] = 0;
         }
 
         delete players;
 
-        emit Restart(gameId, width, height, curseInterval, winner);
+        emit Restart(gameId, prevGameId, width, height, curseInterval, winner);
         console.log("Restarted game %s", gameId);
     }
 
@@ -373,9 +381,9 @@ contract Game is Ownable {
         // check if all players are registered, if so start the game
         if (players.length == 4) {
             gameOn = true;
+            console.log("Game started");
             runTicker();
         }
-
     }
 
     function currentPosition() public view returns (Position memory) {
@@ -417,10 +425,10 @@ contract Game is Ownable {
         attritionDivider = newDivider;
     }
 
-    function gameEnded() public view returns (bool) {
-        uint256 currentGameId = _gameIds.current();
-        return gameRewards[currentGameId] == address(0);
-    }
+    // function gameEnded() public view returns (bool) {
+    //     uint256 currentGameId = _gameIds.current();
+    //     return gameRewards[currentGameId] == address(0);
+    // }
 
     function move(uint8 x, uint8 y) public {
         require(gameOn, "move NOT PLAYING");
@@ -446,18 +454,18 @@ contract Game is Ownable {
 
         // check if its not the same place as before
         require(position.x != x || position.y != y, "SAME POSITION AS BEFORE");
-      
-        // check if its moving too far, max 2 squares
-        require(position.x + 2 >= x && position.x - 2 <= x, "TOO FAR X");
-        require(position.y + 2 >= y && position.y - 2 <= y, "TOO FAR Y");
+
+        // TODO: add/check if its moving too far, max 2 squares/steps
+        // require(position.x + 2 >= x && position.x - 2 <= x, "TOO FAR X");
+        // require(position.y + 2 >= y && position.y - 2 <= y, "TOO FAR Y");
 
         // prevent multiples moves
         // require(
-        //     block.timestamp - lastActionTime[tx.origin] >= actionInterval,
+        //     block.timestamp - playersTikerTimestamp[tx.origin] >= actionInterval,
         //     "TOO EARLY TIME, WAIT A FEW SECS AND TRY AGAIN"
         // );
 
-        // require(gameTicker > lastActionTick[tx.origin], "TOO EARLY TICKER");
+        // require(gameTicker > playersTicker[tx.origin], "TOO EARLY TICKER");
 
         // check if there is a dead player on the field
         Field memory field = worldMatrix[x][y];
@@ -476,9 +484,6 @@ contract Game is Ownable {
         // if (health[tx.origin] < 0) {
         //     health[tx.origin] = 0;
         // }
-
-        // handle custom game logic like cursed drops, health drops, etc
-        runTicker();
 
         // check if there is no players on the field
         if (field.player == address(0)) {
@@ -549,16 +554,17 @@ contract Game is Ownable {
             );
         }
 
+        playersTicker[tx.origin] = gameTicker;
+        playersTikerTimestamp[tx.origin] = block.timestamp;
+        playersTickerBlock[tx.origin] = block.number;
+
+        // handle custom game logic like cursed drops, health drops, etc
+        runTicker();
     }
 
     function needsManualTicker() public view returns (bool) {
         // require(gameOn, "NOT PLAYING");
-        console.log("block.number", block.number);
-        console.log("curseInterval", curseInterval);
-        console.log("gameTicker", gameTicker);
-        console.log("tickerBlock", tickerBlock);
-
-
+        console.log("needsManualTicker", tickerBlock < block.number);
         // return block.number + curseInterval > tickerBlock;
         return tickerBlock < block.number;
     }
@@ -605,12 +611,13 @@ contract Game is Ownable {
     }
 
     function runTicker() public {
-        console.log("RUNNING GAME TICKER");
         require(gameOn, "NOT PLAYING");
+        console.log("RUNNING GAME TICKER");
         uint256 currentGameId = _gameIds.current();
 
         if (gameOn == true && gameRewards[currentGameId] != address(0)) {
             console.log("GAME OVER, RESTARTING");
+            console.log("GAME REWARDS", gameRewards[currentGameId]);
             restart(gameRewards[currentGameId]);
         } else {
             // check if game is NOT over by checking players health and cursed positions
@@ -647,41 +654,42 @@ contract Game is Ownable {
                 console.log("ALL PLAYERS ARE DEAD, GAME OVER");
                 // all players are dead, restart the game, save the winner address using the contract address
                 gameRewards[currentGameId] = address(this);
-                // emmit game over event
             } else if (playersAlive == 1 && winner != address(0)) {
                 console.log("WE HAVE A WINNER %s, GAME OVER", winner);
                 gameRewards[currentGameId] = winner;
-                // TODO: add mint and add SVG crown to loogie loogies[winner]
-                // gameOn = false;
+                // TODO: add mint and add SVG crown to loogie
             } else {
                 console.log("GAME IS STILL ON");
 
                 // check if we need to drop a curse
+                console.log("gameTicker %s", gameTicker);
+                console.log("curseInterval", curseInterval);
+                console.log(
+                    "gameTicker % curseInterval",
+                    gameTicker % curseInterval
+                );
+
                 if (gameTicker > 0 && gameTicker % curseInterval == 0) {
+                    console.log("DROPPING CURSE");
                     dropCurse();
                 }
             }
 
             // increment  ticker
+            // TODO: prevent multiple calls
             _gameTicker.increment();
             gameTicker = _gameTicker.current();
             tickerBlock = block.number;
-            lastActionTick[tx.origin] = gameTicker;
-            lastActionTime[tx.origin] = block.timestamp;
-            lastActionBlock[tx.origin] = block.number;
-            console.log("GAME TICKER: %s", gameTicker);
-            console.log("GAME LAST ACTION TICK: %s", lastActionTick[tx.origin]);
-            console.log("GAME LAST ACTION TIME: %s", lastActionTime[tx.origin]);
-            console.log(
-                "GAME LAST ACTION BLOCK: %s",
-                lastActionBlock[tx.origin]
-            );
-        }
+            tickerTimestamp = block.timestamp;
 
-        console.log("GAME TICKER END");
-        emit Ticker( currentGameId, tx.origin, gameOn, gameTicker );
+            console.log("GAME TICKER: %s", gameTicker);
+            console.log("currentGameId: %s", currentGameId);
+
+            console.log("EMMITING EVENT Ticker");
+            emit Ticker(currentGameId, tx.origin, gameOn, gameTicker);
+        }
     }
-   
+
     function totalPlayers() public view returns (uint256) {
         return players.length;
     }

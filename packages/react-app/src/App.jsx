@@ -1,6 +1,7 @@
 import { Button, Card, List, Menu, Col, Row } from "antd";
 // import Blockies from "react-blockies";
 import "antd/dist/antd.css";
+import { NetworkStatus } from "@apollo/client";
 import { useBalance, useContractLoader, useOnBlock, useUserProviderAndSigner } from "eth-hooks";
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, Route, Switch, useLocation } from "react-router-dom";
@@ -61,6 +62,8 @@ const fetchLoogies = async (address, readContracts) => {
 const MAX_PLAYERS = 4;
 // const INI_HEALTH = 100;
 const BOX_SIZE = 64;
+// estimated block time, in seconds
+const BLOCK_TIME = 15;
 
 const { ethers } = require("ethers");
 
@@ -156,37 +159,38 @@ function App(props) {
   // const mainnetContracts = useContractLoader(mainnetProvider, contractConfig);
 
   // If you want to call a function on a new block
-  const [gameBlock, setGameBlock] = useState(0);
-  useOnBlock(provider, block => {
-    console.log("🚀 ~ file: App.jsx ~ line 201 ~ useOnBlock ~ block", block);
+  // const [gameBlock, setGameBlock] = useState(0);
+  // useOnBlock(provider, block => {
+  //   console.log("🚀 ~ file: App.jsx ~ line 201 ~ useOnBlock ~ block", block);
 
-    setGameBlock(provider._lastBlockNumber);
-  });
+  //   setGameBlock(provider._lastBlockNumber);
+  // });
 
   // add players inside the game query, like i do for worldMatrixes
   const WORLD_QUERY_GRAPHQL = `
+
   {
     games {
       id,
-      ticker,
+      gameOn,
+      winner,
       height,
       width,
-      restart,
-      winner,
+      curseDropCount,
       curseNextGameTicker,
-      gameOn,
+      curseDropCount,
+      curseInterval,
+      ticker,
+      tickerBlock,
       createdAt,
-      curseDropCount
+      updatedAt
     },
     players {
-      id,
-      x,
-      y,
-      loogieId,
-      health,
-      lastActionTick,
-      lastActionBlock,
-      lastActionTime
+        id,
+        x,
+        y,
+        loogieId,
+        health
     },
     worldMatrixes {
       id,
@@ -199,16 +203,14 @@ function App(props) {
         x,
         y,
         loogieId,
-        health,
-        lastActionTick,
-        lastActionBlock,
-        lastActionTime
+        health
       }
     }
   }
+  
   `;
   const WORLD_QUERY_GQL = gql(WORLD_QUERY_GRAPHQL);
-  const { loading, error, data } = useQuery(WORLD_QUERY_GQL, {
+  const { loading, error, data, refetch, networkStatus } = useQuery(WORLD_QUERY_GQL, {
     pollInterval: 1000,
     // pollInterval: 2500,
     fetchPolicy: "network-only", // Doesn't check cache before making a network request
@@ -332,9 +334,9 @@ function App(props) {
                 id: playerId,
                 loogieId: currentPosition.loogieId,
                 position: { x: currentPosition.x, y: currentPosition.y },
-                lastActionTick: parseInt(currentPosition.lastActionTick),
-                lastActionBlock: parseInt(currentPosition.lastActionBlock),
-                lastActionTime: parseInt(currentPosition.lastActionTime),
+                ticker: parseInt(currentPosition.ticker),
+                lastBlock: parseInt(currentPosition.lastBlock),
+                updatedAt: parseInt(currentPosition.updatedAt),
                 health: parseInt(currentPosition.health, 10),
                 // cursed: currentPosition.cursed || false, the player is not cursed, the world is
                 image: jsonManifest.image,
@@ -396,10 +398,12 @@ function App(props) {
     }
   }, [balance, priceRightNow]);
 
+  // TODO: move to apollo subscription
   const [needsManualTicker, setNeedsManualTicker] = useState(false);
   useEffect(() => {
     const setNeedsManualTickerAsync = async () => {
-      if (readContracts.Game) {
+      // update needsManualTicker when apollo is refetched
+      if (readContracts.Game && networkStatus === NetworkStatus.refetch) {
         try {
           const needsManualTicker = await readContracts.Game.needsManualTicker();
           setNeedsManualTicker(needsManualTicker);
@@ -410,7 +414,7 @@ function App(props) {
     };
 
     setNeedsManualTickerAsync();
-  }, [readContracts.Game]);
+  }, [readContracts.Game, networkStatus]);
 
   const faucetAvailable = provider && provider.connection && targetNetwork.name.indexOf("local") !== -1;
   console.log("🚀 ~ file: App.jsx ~ line 422 ~ App ~ faucetAvailable", faucetAvailable);
@@ -540,7 +544,8 @@ function App(props) {
                             <>
                               <h3>Connected as: {trimAddress(playersData[currentPlayerAddress]?.id)}</h3>
                               <p>
-                                Playing Game #{currentGame.id} with loogie {playersData[currentPlayerAddress]?.loogieId}{" "}
+                                Playing Game #{currentGame.id} with loogie #
+                                {playersData[currentPlayerAddress]?.loogieId}{" "}
                               </p>
 
                               {/* <ul
@@ -564,9 +569,9 @@ function App(props) {
                                     )?.cursed === true
                                   }`}
                                 </li>
-                                <li>LastActionTick: {playersData[currentPlayerAddress]?.lastActionTick} </li>
-                                <li>LastActionTime: {playersData[currentPlayerAddress]?.lastActionTime} </li>
-                                <li>LastActionBlock: {playersData[currentPlayerAddress]?.lastActionBlock}</li>
+                                <li>LastActionTick: {playersData[currentPlayerAddress]?.ticker} </li>
+                                <li>LastActionTime: {playersData[currentPlayerAddress]?.updatedAt} </li>
+                                <li>LastActionBlock: {playersData[currentPlayerAddress]?.lastBlock}</li>
                               </ul> */}
                             </>
                           ) : (
@@ -587,9 +592,24 @@ function App(props) {
                               >
                                 {/* <li>gameOn: {`${currentGame.gameOn}`}</li> */}
                                 <li>Ticker: {currentGame.ticker}</li>
-                                {/* <li>Current block: {gameBlock}</li> */}
-                                <li>Current ticker: {currentGame.ticker}</li>
-                                <li>NextCurse: {currentGame.curseNextGameTicker}</li>
+                                <li>Current block: {currentGame.block}</li>
+                                <li>
+                                  Winner: {`${currentGame.winner !== "0x0000000000000000000000000000000000000000"}`}
+                                </li>
+                                <li>
+                                  Players alive:{" "}
+                                  {playersData && Object.values(playersData).filter(p => p.health > 0).length}{" "}
+                                </li>
+                                <li>
+                                  Endgame:{" "}
+                                  {playersData && Object.values(playersData).filter(p => p.health > 0).length <= 1
+                                    ? "true"
+                                    : "false"}
+                                </li>
+                                <li>createdAt: {currentGame.createdAt}</li>
+                                <li>updatedAt: {currentGame.updatedAt}</li>
+                                <li>curseInterval: {currentGame.curseInterval}</li>
+                                <li>curseNextGameTicker: {currentGame.curseNextGameTicker}</li>
                                 <li>curseDropCount: {currentGame.curseDropCount}</li>
                                 <li>
                                   NextCurseIn:{" "}
@@ -620,9 +640,9 @@ function App(props) {
                                     {/* <strong>health:</strong> {playersData[player]?.health} <br /> */}
                                     {/* <strong>position:</strong>{" "}
                                     {`${playersData[player]?.position.x},${playersData[player]?.position.y}`} <br /> */}
-                                    <strong>lastActionTick:</strong> {`${playersData[player]?.lastActionTick}`} <br />
-                                    <strong>lastActionTime:</strong> {`${playersData[player]?.lastActionTime}`} <br />
-                                    <strong>lastActionBlock:</strong> {`${playersData[player]?.lastActionBlock}`}
+                                    <strong>ticker:</strong> {`${playersData[player]?.ticker}`} <br />
+                                    <strong>updatedAt:</strong> {`${playersData[player]?.updatedAt}`} <br />
+                                    <strong>lastBlock:</strong> {`${playersData[player]?.lastBlock}`}
                                   </li>
                                 ))}
                               </ul>
@@ -860,6 +880,13 @@ function App(props) {
                   {data.worldMatrixes.map((world, index) => {
                     const { x, y, player, healthAmountToCollect, cursed } = world;
 
+                    // check if is the end of the game, gameOn and no live players or only one live player
+                    const endGame =
+                      currentGame &&
+                      currentGame.gameOn &&
+                      playersData &&
+                      Object.values(playersData).filter(p => p.health > 0).length <= 1;
+
                     const canMoveHere =
                       currentPlayerAddress &&
                       // data.worldMatrixes.find(world => world.id === `${x}-${y}`)?.cursed === false &&
@@ -987,7 +1014,7 @@ function App(props) {
                           />
                         )}
 
-                        {currentGame.gameOn && (
+                        {currentGame.gameOn && !endGame && (
                           <div
                             // style={{
                             //   background: canMoveHere
@@ -1078,11 +1105,11 @@ function App(props) {
 
       <ThemeSwitch />
 
-      {faucetAvailable && (
+      {/* {faucetAvailable && (
         <div style={{ position: "fixed", textAlign: "left", left: 0, bottom: 20, padding: 10 }}>
           <Faucet localProvider={provider} price={1} />
         </div>
-      )}
+      )} */}
     </div>
   );
 }
